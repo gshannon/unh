@@ -1,0 +1,218 @@
+#! /usr/bin/env python3
+
+import argparse
+import csv
+import sys
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from app.cdmo import get_water_data
+from app.ftp import send_files
+from app.util import eastern, epoch_to_datetime, readMarkerFile, writeMarkerFile
+from app.xylem import DATA_STREAMS, get_observations
+
+XYLEM_HEADER = ["datetime-utc", "param", "value"]
+CDMO_HEADER = ["datetime-utc", "param", "value"]
+MAXIMUM_WINDOW = timedelta(days=10)
+
+# Xylum has data at 46:xx minutes after the hour, so this will include those
+END_MINUTE = 47
+# After this many minutes past any hour, the complete data for the previous hour should be ready.
+DATA_CUTOFF_MINUTES = 35
+
+_module_dir = Path(__file__).parent
+_data_dir = _module_dir / "data"
+
+
+def to_xylem_rows(
+    datastreams: dict[str, str], streams: dict[str, list[dict]]
+) -> list[list]:
+    """Flatten observations into CSV rows, ordered by datastream.
+
+    resultTime is when the platform received it, and is ignored
+    phenomenonTime is when the device measured it, as ISO datetime in UTC
+    """
+
+    # sort the data by datetime then stream name
+    cooked: dict[datetime, dict[str, str]] = {}
+    for ds_id, name in datastreams.items():
+        for obs in streams.get(ds_id, []):
+            dt = epoch_to_datetime(obs["phenomenonTime"])
+            cooked.setdefault(dt, {})
+            cooked[dt][name] = obs["value"]
+
+    rows = [XYLEM_HEADER]
+    # cdmo returns data in reverse time order so sort it here.
+    for obs_time in sorted(cooked):
+        data = cooked[obs_time]
+        for param in sorted(data):
+            value = data[param]
+            rows.append(
+                [
+                    obs_time.isoformat(),
+                    param,
+                    value,
+                ]
+            )
+    return rows
+
+
+def to_cdmo_rows(water: dict[str, dict[datetime, str]]) -> list[list]:
+    # sort by datetime + param
+    cooked: dict[datetime, dict[str, str]] = {}
+    for param, observations in water.items():
+        for obs_time, value in observations.items():
+            cooked.setdefault(obs_time, {})
+            cooked[obs_time][param] = value
+
+    rows = [CDMO_HEADER]
+
+    # cdmo returns data in reverse time order so sort it here.
+    for obs_time in sorted(cooked):
+        observations = cooked[obs_time]
+        for param in sorted(observations):
+            value = observations[param]
+            rows.append(
+                [
+                    obs_time.isoformat(),
+                    param,
+                    value,
+                ]
+            )
+    return rows
+
+
+def parse_time(value: str) -> datetime:
+    """Parse an ISO datetime; a naive value is taken as US/Eastern."""
+    dt = datetime.fromisoformat(value)
+    return dt.replace(tzinfo=eastern) if dt.tzinfo is None else dt
+
+
+def get_window(parser, args) -> tuple[datetime, datetime]:
+    """Return (start, end) from --start or --start/--end, validating the combination."""
+    if args.end_time and not args.start_time:
+        parser.error("--end requires --start")
+    if args.start_time and not args.end_time:
+        parser.error("--start requires --end")
+
+    auto_mode = False
+    if args.start_time:
+        start = parse_time(args.start_time)
+        end = parse_time(args.end_time) if args.end_time else datetime.now(UTC)
+        if start >= end:
+            parser.error("Start time is after end time")
+    else:
+        auto_mode = True
+        # auto mode. Read the last hour read from the marker file
+
+        now = datetime.now(UTC).replace(second=0, microsecond=0)
+        # Data for previous hour should be available after a certain number of minutes past the hour.
+        # Determine the query end time of the most recent hour that should be available, to minute precision.
+        latest_available_end = now.replace(minute=END_MINUTE) - timedelta(
+            hours=(1 if now.minute > DATA_CUTOFF_MINUTES else 2)
+        )
+
+        marker_hour = readMarkerFile()
+        if marker_hour is not None:
+            # if args.verbose:
+            print(f"Using marker file: {marker_hour}")
+            start = marker_hour + timedelta(hours=1)
+            end = latest_available_end
+            if start >= end:
+                raise Exception(f"Data for {start} should not be available yet")  # noQA
+        else:
+            # There's no marker file, so just try to get the previous hour's data.
+            start = latest_available_end.replace(minute=0)
+            end = latest_available_end
+            print(f"No marker file, defaulting to {start.strftime('%Y-%m-%d %H UTC')}")
+
+    if start >= end:
+        parser.error("Nothing to do -- start time is after end time")
+    if end - start > MAXIMUM_WINDOW:
+        parser.error(f"window exceeds the {MAXIMUM_WINDOW.days}-day limit")
+    return start, end, auto_mode
+
+
+def build_outfilepath(prefix: str, start: datetime) -> str:
+    return _data_dir / f"{prefix}-{start.strftime('%Y%m%d%H%M')}.csv"
+
+
+def process_params(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Pull observations for Harpswell and Wells, create csv files and send to target."
+    )
+    parser.add_argument(
+        "-s",
+        "--start",
+        dest="start_time",
+        metavar="START-TIME",
+        help="Start time, e.g. 2025-03-01T08:00 (US/Eastern unless an offset is given)",
+    )
+    parser.add_argument(
+        "-e",
+        "--end",
+        dest="end_time",
+        metavar="END-TIME",
+        help="End time, same format as --start",
+    )
+    parser.add_argument(
+        "-t",
+        "--type",
+        required=False,
+        choices=["W", "H"],
+        dest="type",
+        metavar="TYPE",
+        help="data type: W=Wells, H=Harpswell (default=both)",
+    )
+    parser.add_argument("-d", "--dryrun", action="store_true", help="Do not ftp if set")
+    parser.add_argument("--strict", action="store_true", help="Fail if missing data")
+    args = parser.parse_args(argv)
+    return parser, args
+
+
+def main(argv=None):
+
+    parser, args = process_params(argv)
+    start, end, auto_mode = get_window(parser, args)
+    files_to_send = []
+    print(f"Processing {start} to {end}")
+
+    # Harpswell data from Xylem
+    if args.type is None or args.type == "H":
+        print("Pulling Harpswell data...")
+        observations = get_observations(
+            list(DATA_STREAMS), start, end, strict=args.strict
+        )
+
+        harpswell_filepath = build_outfilepath("harps", start)
+        with harpswell_filepath.open("w", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(to_xylem_rows(DATA_STREAMS, observations))
+        files_to_send.append(harpswell_filepath)
+
+    # Wells data from CDMO
+    if args.type is None or args.type == "W":
+        print("Pulling Wells data...")
+        water = get_water_data(start, end, args.strict)
+
+        wells_filepath = build_outfilepath("wells", start)
+        with wells_filepath.open("w", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(to_cdmo_rows(water))
+        files_to_send.append(wells_filepath)
+
+    if files_to_send:
+        send_files(*files_to_send)
+
+    # If we made it this far, we succeeded. Write the marker file if in auto mode.
+    if auto_mode and not args.dryrun:
+        writeMarkerFile(end)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:  # noQA
+        print(e)
