@@ -22,7 +22,7 @@ END_MINUTE = 47
 # After this many minutes past any hour, the complete data for the previous hour should be ready.
 DATA_CUTOFF_MINUTES = 35
 
-_module_dir = Path(__file__).parent
+_module_dir = Path(__file__).parent.parent
 _data_dir = _module_dir / "data"
 
 
@@ -203,7 +203,7 @@ def main(argv=None):
             writer.writerows(to_cdmo_rows(water))
         files_to_send.append(wells_filepath)
 
-    if files_to_send:
+    if files_to_send and not args.dryrun:
         send_files(*files_to_send)
 
     # If we made it this far, we succeeded. Write the marker file if in auto mode.
