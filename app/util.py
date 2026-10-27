@@ -3,7 +3,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 utc = ZoneInfo("UTC")
-eastern = ZoneInfo("US/Eastern")
+eastern = ZoneInfo("America/New_York")
 
 MARKER_FILE = ".lastend"
 _module_dir = Path(__file__).parent
