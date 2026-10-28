@@ -1,7 +1,13 @@
 from datetime import datetime, timedelta
-from urllib.parse import quote
 
 import requests
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    field_validator,
+)
 
 from app.security import get_token
 from app.util import datetime_to_epoch_ms, epoch_to_datetime
@@ -60,6 +66,26 @@ EXO_HEADER = ["datetime-utc"] + list(EXO_DATA_STREAMS.values())
 MET_HEADER = ["datetime-utc"] + list(MET_DATA_STREAMS.values())
 
 
+class Observation(BaseModel):
+    # Using a pydantic model for type validation when reading json from API.
+    # This class represents a single observation
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    value: float
+    # json field name is phenomenonTime, an epoch time
+    timestamp: datetime = Field(alias="phenomenonTime")
+    resultTime: int = Field(exclude=True)
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def convert_epoch(cls, ptime: int) -> datetime:
+        return epoch_to_datetime(ptime)
+
+
+class StreamObservations(RootModel[dict[str, list[Observation]]]):
+    model_config = ConfigDict(frozen=True)
+
+
 class XylemApiError(Exception):
     """An error response from the Xylem API (400, 401, 403, 404, 500, ...).
 
@@ -106,7 +132,7 @@ def get_observations(
     start_time: datetime,
     end_time: datetime,
     strict: bool = False,
-) -> dict[str, list[dict]]:
+) -> dict[str, list[StreamObservations]]:
     """Fetch observations for the given datastreams and time range.
 
     Returns a dict keyed by datastream id; each value is a list of
@@ -124,19 +150,22 @@ def get_observations(
         "from": datetime_to_epoch_ms(start_time),
         "until": datetime_to_epoch_ms(end_time),
     }
-    data: list[str, list[dict]] = _get(OBSERVATIONS_URL, get_token(), params=params)
-    expected_keys = len(EXO_DATA_STREAMS) + len(MET_DATA_STREAMS)
-    num_keys = len(data)
+    json_content = _get(OBSERVATIONS_URL, get_token(), params=params)
+    obs_dict = StreamObservations.model_validate(json_content, strict=True)
+    data = obs_dict.root
+
+    expected_streams = len(EXO_DATA_STREAMS) + len(MET_DATA_STREAMS)
+    num_streams = len(data)
     fail = False
-    if num_keys != expected_keys:
-        print(f"Expected {expected_keys} keys from Xylem but got {num_keys}")
+    if num_streams != expected_streams:
+        print(f"Expected {expected_streams} keys from Xylem but got {num_streams}")
         if strict:
             fail = True
-    for key, val in data.items():
-        if len(val) == 0 or len(val) % 4 != 0:
+    for stream_id, obs_dict in data.items():
+        if len(obs_dict) == 0 or len(obs_dict) % 4 != 0:
             if strict:
                 fail = True
-            print(f"Xylem {key} has {len(val)} values)")
+            print(f"Xylem {stream_id} has {len(obs_dict)} values)")
     if fail:
         raise Exception("Bad Data")  # noQA
     return data
