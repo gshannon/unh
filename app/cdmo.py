@@ -23,7 +23,7 @@ def get_water_data(
     # ensure we have a multiple of 4 timestamps, so we have full days only.
     num_timestamps = len(data)
     if num_timestamps == 0 or num_timestamps % 4 != 0:
-        print(f"Got {num_timestamps} from CDMO")
+        print(f"  Got {num_timestamps} from CDMO")
         if strict:
             fail = True
 
@@ -32,7 +32,7 @@ def get_water_data(
     fail = False
     for dt, values in data.items():
         if len(values) != expected_values:
-            print(f"CDMO {dt} has {len(values)} values, expected {expected_values}")
+            print(f"  CDMO {dt} has {len(values)} values, expected {expected_values}")
             if strict:
                 fail = True
 
@@ -105,13 +105,6 @@ def to_cdmo_rows(water: dict[datetime, dict[str, str]]) -> list[list]:
     return rows
 
 
-def dump_cdmo(data: dict[datetime, dict[str, str]]) -> None:
-    min_dt = min(data)
-    print(f"Earliest data: {min_dt}")
-    for key, vals in data[min_dt].items():
-        print(f"{key:>6}: {vals}")
-
-
 def ensure_no_text(rootElement: ElTree.Element) -> None:
     """The root node is not supposed to have text, so if it does, we assume it's an error message since
     that's how CDMO does it. e.g., "Invalid IP address"
@@ -120,7 +113,7 @@ def ensure_no_text(rootElement: ElTree.Element) -> None:
     try:
         message = text.strip() if text else ""
         if len(message) > 0:
-            print(f"Received unexpected message from CDMO: {message}")
+            print(f"  Received unexpected message from CDMO: {message}")
             raise Exception(f"CDMO returned: {message}")  # noQA
     except AttributeError:
         pass  # Not every payload has text in their data node
