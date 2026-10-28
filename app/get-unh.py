@@ -8,14 +8,13 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.cdmo import dump_cdmo, get_water_data, to_cdmo_rows
+from app.cdmo import get_water_data, to_cdmo_rows
 from app.ftp import send_files
 from app.util import eastern, readMarkerFile, writeMarkerFile
 from app.xylem import (
     EXO_DATA_STREAMS,
     MET_DATA_STREAMS,
     StreamObservations,
-    dump_xylem,
     get_observations,
     to_timestamp_rows,
 )
@@ -64,7 +63,7 @@ def get_window(parser, args) -> tuple[datetime, datetime]:
         marker_hour = readMarkerFile()
         if marker_hour is not None:
             # if args.verbose:
-            print(f"Using marker file: {marker_hour}")
+            print(f"  Using marker file: {marker_hour}")
             start = marker_hour + timedelta(hours=1)
             end = latest_available_end
             if start >= end:
@@ -73,7 +72,9 @@ def get_window(parser, args) -> tuple[datetime, datetime]:
             # There's no marker file, so just try to get the previous hour's data.
             start = latest_available_end.replace(minute=0)
             end = latest_available_end
-            print(f"No marker file, defaulting to {start.strftime('%Y-%m-%d %H UTC')}")
+            print(
+                f"  No marker file, defaulting to {start.strftime('%Y-%m-%d %H UTC')}"
+            )
 
     if start >= end:
         parser.error("Nothing to do -- start time is after end time")
@@ -127,19 +128,19 @@ def main(argv=None):
     parser, args = process_params(argv)
     start, end, auto_mode = get_window(parser, args)
     files_to_send = []
-    print(f"Processing {start} to {end}")
+    print(
+        f"{(datetime.now(UTC)).strftime('%a %b %d %H:%M:%S UTC')} Processing {start} to {end}"
+    )
 
     # Harpswell data from Xylem
     if args.type is None or args.type == "H":
-        print("Pulling Harpswell data...")
+        print("  Pulling Harpswell data...")
         observations: dict[str, list[StreamObservations]] = get_observations(
             list(EXO_DATA_STREAMS) + list(MET_DATA_STREAMS),
             start,
             end,
             strict=args.strict,
         )
-        if args.verbose:
-            dump_xylem(observations)
 
         harpswell_filepath = build_outfilepath("harps-exo", start)
         with harpswell_filepath.open("w", newline="") as csvfile:
@@ -155,10 +156,8 @@ def main(argv=None):
 
     # Wells data from CDMO
     if args.type is None or args.type == "W":
-        print("Pulling Wells data...")
+        print("  Pulling Wells data...")
         water = get_water_data(start, end, args.strict)
-        if args.verbose:
-            dump_cdmo(water)
         wells_filepath = build_outfilepath("wells", start)
         with wells_filepath.open("w", newline="") as csvfile:
             writer = csv.writer(csvfile)

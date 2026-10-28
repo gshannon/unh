@@ -158,7 +158,7 @@ def get_observations(
     num_streams = len(obs_dict.root)
     fail = False
     if num_streams != expected_streams:
-        print(f"Expected {expected_streams} keys from Xylem but got {num_streams}")
+        print(f"  Expected {expected_streams} keys from Xylem but got {num_streams}")
         if strict:
             fail = True
 
@@ -169,7 +169,7 @@ def get_observations(
         if name is None:
             raise Exception(f"stream {stream_id} is not valid")  # noQA
         if len(obs_list) == 0 or len(obs_list) % 4 != 0:
-            print(f"Xylem {name} has {len(obs_list)} values")
+            print(f"  Xylem {name} has {len(obs_list)} values")
             if strict:
                 fail = True
         data[name] = obs_list
@@ -201,13 +201,3 @@ def to_timestamp_rows(
     for obs_time, data in dict(sorted(cooked.items())).items():
         rows.append([obs_time.isoformat()] + data)
     return rows
-
-
-def dump_xylem(data: dict[str, list[dict]]) -> None:
-    # {"2282793": [{"phenomenonTime": 99999999, "value": "123.45"}, ...]}
-    min_key = min(data)
-    print(f"First parameter: {min_key}")
-    obs1 = data[min_key]
-    ptime = obs1[0]["phenomenonTime"]
-    obs_time = epoch_to_datetime(ptime)
-    print(f"  {ptime:<18} ({obs_time}): [...]")
