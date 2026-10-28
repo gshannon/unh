@@ -90,6 +90,21 @@ def parse_cdmo_xml(
     return data
 
 
+def sort_values_by_param(data: dict[str, str]) -> list[str]:
+    cooked: list[str] = []
+    for key in WATER_PARAMS:
+        cooked.append(data[key])
+    return cooked
+
+
+def to_cdmo_rows(water: dict[datetime, dict[str, str]]) -> list[list]:
+    rows: list[list] = [["datetime-utc"] + WATER_PARAMS]
+
+    for obs_time, data in dict(sorted(water.items())).items():
+        rows.append([obs_time.isoformat()] + sort_values_by_param(data))
+    return rows
+
+
 def dump_cdmo(data: dict[datetime, dict[str, str]]) -> None:
     min_dt = min(data)
     print(f"Earliest data: {min_dt}")
