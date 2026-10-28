@@ -4,7 +4,7 @@ from urllib.parse import quote
 import requests
 
 from app.security import get_token
-from app.util import datetime_to_epoch_ms
+from app.util import datetime_to_epoch_ms, epoch_to_datetime
 
 # Sandbox urls:
 # SITES_URL = "https://cloudfront-gc.xylem-cloud.com/xcloud/data-export/sites"
@@ -25,42 +25,48 @@ MAX_OBSERVATION_WINDOW = timedelta(days=14)
 CUNDY_HARBOR_REG_ID = "D1frRlqlLf4JIcSO64PW"
 CUNDY_HARBOR_ID = "68ae13a5f9101a3a0812f688"
 
-DATA_STREAMS = {
-    "2282793": "Exo1Data:Chlorophyll_ug/L",
-    "2282801": "Exo1Data:Phycoerythrin_ug/L",
-    "2282796": "Exo1Data:DO_Sat",
-    "2282804": "Exo1Data:SpCond_uS/cm",
-    "2282797": "Exo1Data:DO_mg/L",
-    "2282799": "Exo1Data:pH",
-    "2282798": "Exo1Data:ExoSamplesCounter",
-    "2282794": "Exo1Data:Date",
-    "2282806": "Exo1Data:Time",
-    "2282802": "Exo1Data:Salinity_PSU",
-    "2282803": "Exo1Data:Sonde_Battery_Power_V",
-    "2282795": "Exo1Data:Depth_m",
-    "2282805": "Exo1Data:Temp_DegC",
-    "2282807": "Exo1Data:Turbidity_NTU",
-    "2282800": "Exo1Data:pH_mV",
-    "2282821": "METData:Strikes",
-    "2282810": "METData:CompassHd_deg",
-    "2282816": "METData:NorthWSpd_ms",
-    "2282820": "METData:SlrFD_W",
-    "2282808": "METData:AirT_C",
-    "2282814": "METData:MaxWSpd_ms",
-    "2282809": "METData:BP_kPa",
-    "2282813": "METData:MaxWS_ms",
-    "2282811": "METData:Dist_km",
-    "2282822": "METData:TiltNS_deg",
-    "2282812": "METData:EastWSpd_ms",
-    "2282818": "METData:RH",
-    "2282815": "METData:METSamplesCounter",
-    "2282817": "METData:Rain_mm",
-    "2282819": "METData:RHT_C",
-    "2282823": "METData:TiltWE_deg",
-    "2282826": "METData:WS_ms",
-    "2282825": "METData:WindDir",
-    "2282824": "METData:VP_kPa",
+EXO_DATA_STREAMS = {
+    "2282793": "Chlorophyll_ug/L",
+    "2282801": "Phycoerythrin_ug/L",
+    "2282796": "DO_Sat",
+    "2282804": "SpCond_uS/cm",
+    "2282797": "DO_mg/L",
+    "2282799": "pH",
+    "2282798": "ExoSamplesCounter",
+    "2282794": "Date",
+    "2282806": "Time",
+    "2282802": "Salinity_PSU",
+    "2282803": "Sonde_Battery_Power_V",
+    "2282795": "Depth_m",
+    "2282805": "Temp_DegC",
+    "2282807": "Turbidity_NTU",
+    "2282800": "pH_mV",
 }
+
+MET_DATA_STREAMS = {
+    "2282821": "Strikes",
+    "2282810": "CompassHd_deg",
+    "2282816": "NorthWSpd_ms",
+    "2282820": "SlrFD_W",
+    "2282808": "AirT_C",
+    "2282814": "MaxWSpd_ms",
+    "2282809": "BP_kPa",
+    "2282813": "MaxWS_ms",
+    "2282811": "Dist_km",
+    "2282822": "TiltNS_deg",
+    "2282812": "EastWSpd_ms",
+    "2282818": "RH",
+    "2282815": "METSamplesCounter",
+    "2282817": "Rain_mm",
+    "2282819": "RHT_C",
+    "2282823": "TiltWE_deg",
+    "2282826": "WS_ms",
+    "2282825": "WindDir",
+    "2282824": "VP_kPa",
+}
+
+EXO_HEADER = ["datetime-utc"] + list(EXO_DATA_STREAMS.values())
+MET_HEADER = ["datetime-utc"] + list(MET_DATA_STREAMS.values())
 
 
 class XylemApiError(Exception):
@@ -176,8 +182,8 @@ def get_observations(
         "from": datetime_to_epoch_ms(start_time),
         "until": datetime_to_epoch_ms(end_time),
     }
-    data = _get(OBSERVATIONS_URL, get_token(), params=params)
-    expected_keys = len(DATA_STREAMS)
+    data: list[str, list[dict]] = _get(OBSERVATIONS_URL, get_token(), params=params)
+    expected_keys = len(EXO_DATA_STREAMS) + len(MET_DATA_STREAMS)
     num_keys = len(data)
     fail = False
     if num_keys != expected_keys:
@@ -188,9 +194,17 @@ def get_observations(
         if len(val) == 0 or len(val) % 4 != 0:
             if strict:
                 fail = True
-            print(
-                f"Xylem {key} has {len(val)} values ({DATA_STREAMS.get(key, 'unknown')})"
-            )
+            print(f"Xylem {key} has {len(val)} values)")
     if fail:
         raise Exception("Bad Data")  # noQA
     return data
+
+
+def dump_xylem(data: dict[str, list[dict]]) -> None:
+    # {"2282793": [{"phenomenonTime": 99999999, "value": "123.45"}, ...]}
+    min_key = min(data)
+    print(f"First parameter: {min_key}")
+    obs1 = data[min_key]
+    ptime = obs1[0]["phenomenonTime"]
+    obs_time = epoch_to_datetime(ptime)
+    print(f"  {ptime:<18} ({obs_time}): [...]")
