@@ -15,21 +15,27 @@ MAX_CDMO_WINDOW = 10  # 10 days max
 
 def get_water_data(
     start_time: datetime, end_time: datetime, strict: bool = False
-) -> dict[str, dict[datetime, str]]:
+) -> dict[datetime, dict[str, str]]:
     xml: bytes = get_cdmo_xml(WATER_STATION, start_time, end_time, WATER_PARAMS)
     data = parse_cdmo_xml(start_time, end_time, WATER_PARAMS, xml)
-    expected_keys = len(WATER_PARAMS)
-    num_keys = len(data)
-    fail = False
-    if num_keys != expected_keys:
-        print(f"Expected {expected_keys} keys from CDMO but got {num_keys}")
+
+    # Before returning it, do some quality control.  First,
+    # ensure we have a multiple of 4 timestamps, so we have full days only.
+    num_timestamps = len(data)
+    if num_timestamps == 0 or num_timestamps % 4 != 0:
+        print(f"Got {num_timestamps} from CDMO")
         if strict:
             fail = True
-    for key, val in data.items():
-        if len(val) == 0 or len(val) % 4 != 0:
-            print(f"CDMO {key} has {len(val)} values")
+
+    # Now check for the correct number of values for each time.
+    expected_values = len(WATER_PARAMS)
+    fail = False
+    for dt, values in data.items():
+        if len(values) != expected_values:
+            print(f"CDMO {dt} has {len(values)} values, expected {expected_values}")
             if strict:
                 fail = True
+
     if fail:
         raise Exception("Bad Data")  # noQA
     return data
@@ -57,8 +63,8 @@ def get_cdmo_xml(
 
 def parse_cdmo_xml(
     start_time: datetime, end_time: datetime, params: list[str], xml: bytes
-) -> dict[str, dict[datetime, str]]:
-    data: dict[str, dict[datetime, str]] = {}
+) -> dict[datetime, dict[str, str]]:
+    data: dict[datetime, dict[str, str]] = {}
 
     if xml is None or len(xml) == 0:
         return data
@@ -78,10 +84,17 @@ def parse_cdmo_xml(
         for param in params:
             val = record.findtext(f"./{param}")
             if val and val.strip():
-                data.setdefault(param, {})
-                data[param][dt_in_utc] = val
+                data.setdefault(dt_in_utc, {})
+                data[dt_in_utc][param] = val
 
     return data
+
+
+def dump_cdmo(data: dict[datetime, dict[str, str]]) -> None:
+    min_dt = min(data)
+    print(f"Earliest data: {min_dt}")
+    for key, vals in data[min_dt].items():
+        print(f"{key:>6}: {vals}")
 
 
 def ensure_no_text(rootElement: ElTree.Element) -> None:

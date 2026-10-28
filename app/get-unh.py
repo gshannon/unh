@@ -8,13 +8,18 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.cdmo import get_water_data
+from app.cdmo import WATER_PARAMS, dump_cdmo, get_water_data
 from app.ftp import send_files
 from app.util import eastern, epoch_to_datetime, readMarkerFile, writeMarkerFile
-from app.xylem import DATA_STREAMS, get_observations
+from app.xylem import (
+    EXO_DATA_STREAMS,
+    EXO_HEADER,
+    MET_DATA_STREAMS,
+    MET_HEADER,
+    dump_xylem,
+    get_observations,
+)
 
-XYLEM_HEADER = ["datetime-utc", "param", "value"]
-CDMO_HEADER = ["datetime-utc", "param", "value"]
 MAXIMUM_WINDOW = timedelta(days=10)
 
 # Xylum has data at 46:xx minutes after the hour, so this will include those
@@ -27,60 +32,37 @@ _data_dir = _module_dir / "data"
 
 
 def to_xylem_rows(
-    datastreams: dict[str, str], streams: dict[str, list[dict]]
+    datastreams: dict[str, str], observations: dict[str, list[dict]], header: list[str]
 ) -> list[list]:
-    """Flatten observations into CSV rows, ordered by datastream.
-
-    resultTime is when the platform received it, and is ignored
-    phenomenonTime is when the device measured it, as ISO datetime in UTC
-    """
+    """Flatten observations into CSV rows, ordered by datastream."""
 
     # sort the data by datetime then stream name
-    cooked: dict[datetime, dict[str, str]] = {}
-    for ds_id, name in datastreams.items():
-        for obs in streams.get(ds_id, []):
+    cooked: dict[datetime, list[str]] = {}
+    for ds_id in datastreams:
+        for obs in observations.get(ds_id, []):
             dt = epoch_to_datetime(obs["phenomenonTime"])
-            cooked.setdefault(dt, {})
-            cooked[dt][name] = obs["value"]
+            cooked.setdefault(dt, [])
+            cooked[dt].append(obs["value"])
 
-    rows = [XYLEM_HEADER]
+    rows = [header]
     # cdmo returns data in reverse time order so sort it here.
-    for obs_time in sorted(cooked):
-        data = cooked[obs_time]
-        for param in sorted(data):
-            value = data[param]
-            rows.append(
-                [
-                    obs_time.isoformat(),
-                    param,
-                    value,
-                ]
-            )
+    for obs_time, data in dict(sorted(cooked.items())).items():
+        rows.append([obs_time.isoformat()] + data)
     return rows
 
 
-def to_cdmo_rows(water: dict[str, dict[datetime, str]]) -> list[list]:
-    # sort by datetime + param
-    cooked: dict[datetime, dict[str, str]] = {}
-    for param, observations in water.items():
-        for obs_time, value in observations.items():
-            cooked.setdefault(obs_time, {})
-            cooked[obs_time][param] = value
+def sort_values_by_param(data: dict[str, str]) -> list[str]:
+    cooked: list[str] = []
+    for key in WATER_PARAMS:
+        cooked.append(data[key])
+    return cooked
 
-    rows = [CDMO_HEADER]
 
-    # cdmo returns data in reverse time order so sort it here.
-    for obs_time in sorted(cooked):
-        observations = cooked[obs_time]
-        for param in sorted(observations):
-            value = observations[param]
-            rows.append(
-                [
-                    obs_time.isoformat(),
-                    param,
-                    value,
-                ]
-            )
+def to_cdmo_rows(water: dict[datetime, dict[str, str]]) -> list[list]:
+    rows: list[list] = [["datetime-utc"] + WATER_PARAMS]
+
+    for obs_time, data in dict(sorted(water.items())).items():
+        rows.append([obs_time.isoformat()] + sort_values_by_param(data))
     return rows
 
 
@@ -168,6 +150,9 @@ def process_params(argv=None):
     )
     parser.add_argument("-d", "--dryrun", action="store_true", help="Do not ftp if set")
     parser.add_argument("--strict", action="store_true", help="Fail if missing data")
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Print extra diagnostics"
+    )
     args = parser.parse_args(argv)
     return parser, args
 
@@ -182,21 +167,33 @@ def main(argv=None):
     # Harpswell data from Xylem
     if args.type is None or args.type == "H":
         print("Pulling Harpswell data...")
-        observations = get_observations(
-            list(DATA_STREAMS), start, end, strict=args.strict
+        observations: dict[str, list[dict]] = get_observations(
+            list(EXO_DATA_STREAMS) + list(MET_DATA_STREAMS),
+            start,
+            end,
+            strict=args.strict,
         )
+        if args.verbose:
+            dump_xylem(observations)
 
-        harpswell_filepath = build_outfilepath("harps", start)
+        harpswell_filepath = build_outfilepath("harps-exo", start)
         with harpswell_filepath.open("w", newline="") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerows(to_xylem_rows(DATA_STREAMS, observations))
+            writer.writerows(to_xylem_rows(EXO_DATA_STREAMS, observations, EXO_HEADER))
+        files_to_send.append(harpswell_filepath)
+
+        harpswell_filepath = build_outfilepath("harps-met", start)
+        with harpswell_filepath.open("w", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(to_xylem_rows(MET_DATA_STREAMS, observations, MET_HEADER))
         files_to_send.append(harpswell_filepath)
 
     # Wells data from CDMO
     if args.type is None or args.type == "W":
         print("Pulling Wells data...")
         water = get_water_data(start, end, args.strict)
-
+        if args.verbose:
+            dump_cdmo(water)
         wells_filepath = build_outfilepath("wells", start)
         with wells_filepath.open("w", newline="") as csvfile:
             writer = csv.writer(csvfile)
