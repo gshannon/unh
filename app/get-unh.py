@@ -8,17 +8,16 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.cdmo import WATER_PARAMS, dump_cdmo, get_water_data
+from app.cdmo import dump_cdmo, get_water_data, to_cdmo_rows
 from app.ftp import send_files
 from app.util import eastern, readMarkerFile, writeMarkerFile
 from app.xylem import (
     EXO_DATA_STREAMS,
-    EXO_HEADER,
     MET_DATA_STREAMS,
-    MET_HEADER,
     StreamObservations,
     dump_xylem,
     get_observations,
+    to_timestamp_rows,
 )
 
 MAXIMUM_WINDOW = timedelta(days=10)
@@ -30,42 +29,6 @@ DATA_CUTOFF_MINUTES = 35
 
 _module_dir = Path(__file__).parent.parent
 _data_dir = _module_dir / "data"
-
-
-def to_xylem_rows(
-    datastreams: dict[str, str],
-    observations: dict[str, list[StreamObservations]],
-    header: list[str],
-) -> list[list]:
-    """Flatten observations into CSV rows, ordered by datastream."""
-
-    # sort the data by datetime then stream name
-    cooked: dict[datetime, list[str]] = {}
-    for stream_id in datastreams:
-        for obs in observations.get(stream_id, []):
-            cooked.setdefault(obs.timestamp, [])
-            cooked[obs.timestamp].append(obs.value)
-
-    rows = [header]
-    # cdmo returns data in reverse time order so sort it here.
-    for obs_time, data in dict(sorted(cooked.items())).items():
-        rows.append([obs_time.isoformat()] + data)
-    return rows
-
-
-def sort_values_by_param(data: dict[str, str]) -> list[str]:
-    cooked: list[str] = []
-    for key in WATER_PARAMS:
-        cooked.append(data[key])
-    return cooked
-
-
-def to_cdmo_rows(water: dict[datetime, dict[str, str]]) -> list[list]:
-    rows: list[list] = [["datetime-utc"] + WATER_PARAMS]
-
-    for obs_time, data in dict(sorted(water.items())).items():
-        rows.append([obs_time.isoformat()] + sort_values_by_param(data))
-    return rows
 
 
 def parse_time(value: str) -> datetime:
@@ -181,13 +144,13 @@ def main(argv=None):
         harpswell_filepath = build_outfilepath("harps-exo", start)
         with harpswell_filepath.open("w", newline="") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerows(to_xylem_rows(EXO_DATA_STREAMS, observations, EXO_HEADER))
+            writer.writerows(to_timestamp_rows(EXO_DATA_STREAMS, observations))
         files_to_send.append(harpswell_filepath)
 
         harpswell_filepath = build_outfilepath("harps-met", start)
         with harpswell_filepath.open("w", newline="") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerows(to_xylem_rows(MET_DATA_STREAMS, observations, MET_HEADER))
+            writer.writerows(to_timestamp_rows(MET_DATA_STREAMS, observations))
         files_to_send.append(harpswell_filepath)
 
     # Wells data from CDMO
@@ -213,5 +176,7 @@ def main(argv=None):
 if __name__ == "__main__":
     try:
         main()
+        sys.exit(0)
     except Exception as e:  # noQA
         print(e)
+        sys.exit(1)

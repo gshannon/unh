@@ -62,9 +62,6 @@ MET_DATA_STREAMS = {
     "2282824": "VP_kPa",
 }
 
-EXO_HEADER = ["datetime-utc"] + list(EXO_DATA_STREAMS.values())
-MET_HEADER = ["datetime-utc"] + list(MET_DATA_STREAMS.values())
-
 
 class Observation(BaseModel):
     # Using a pydantic model for type validation when reading json from API.
@@ -74,7 +71,7 @@ class Observation(BaseModel):
     value: float
     # json field name is phenomenonTime, an epoch time
     timestamp: datetime = Field(alias="phenomenonTime")
-    resultTime: int = Field(exclude=True)
+    resultTime: int
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -98,6 +95,10 @@ class XylemApiError(Exception):
         self.error_code = error_code
         self.message = message
         super().__init__(f"{status_code} {error_code or ''}: {message or ''}".strip())
+
+
+def get_stream_name(id: str) -> str | None:
+    return EXO_DATA_STREAMS.get(id, None) or MET_DATA_STREAMS.get(id, None)
 
 
 def _raise_for_error(resp: requests.Response) -> None:
@@ -152,23 +153,54 @@ def get_observations(
     }
     json_content = _get(OBSERVATIONS_URL, get_token(), params=params)
     obs_dict = StreamObservations.model_validate(json_content, strict=True)
-    data = obs_dict.root
 
     expected_streams = len(EXO_DATA_STREAMS) + len(MET_DATA_STREAMS)
-    num_streams = len(data)
+    num_streams = len(obs_dict.root)
     fail = False
     if num_streams != expected_streams:
         print(f"Expected {expected_streams} keys from Xylem but got {num_streams}")
         if strict:
             fail = True
-    for stream_id, obs_dict in data.items():
-        if len(obs_dict) == 0 or len(obs_dict) % 4 != 0:
+
+    # sanity check and convert stream ids to name
+    data: dict[str, list[StreamObservations]] = {}
+    for stream_id, obs_list in obs_dict.root.items():
+        name = get_stream_name(stream_id)
+        if name is None:
+            raise Exception(f"stream {stream_id} is not valid")  # noQA
+        if len(obs_list) == 0 or len(obs_list) % 4 != 0:
+            print(f"Xylem {name} has {len(obs_list)} values")
             if strict:
                 fail = True
-            print(f"Xylem {stream_id} has {len(obs_dict)} values)")
+        data[name] = obs_list
+
     if fail:
         raise Exception("Bad Data")  # noQA
     return data
+
+
+def to_timestamp_rows(
+    datastreams: dict[str, str],
+    observations: dict[str, list[StreamObservations]],
+) -> list[list]:
+    """Flatten observations into CSV rows, ordered by datastream."""
+
+    # The order of datastreams.values() will match the order
+    header = ["datetime-utc"] + list(datastreams.values())
+
+    # sort the data by datetime, then stream name
+    cooked: dict[datetime, list[str]] = {}
+    # observations contain both EXO and MET. Only consider the ones with names contained in the header.
+    for name in datastreams.values():
+        for obs in observations.get(name, []):  # restricts it to EXO or MET datastreams
+            cooked.setdefault(obs.timestamp, [])
+            cooked[obs.timestamp].append(obs.value)
+
+    rows = [header]
+    # cdmo returns data in reverse time order so sort it here.
+    for obs_time, data in dict(sorted(cooked.items())).items():
+        rows.append([obs_time.isoformat()] + data)
+    return rows
 
 
 def dump_xylem(data: dict[str, list[dict]]) -> None:
