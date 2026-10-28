@@ -10,12 +10,13 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.cdmo import WATER_PARAMS, dump_cdmo, get_water_data
 from app.ftp import send_files
-from app.util import eastern, epoch_to_datetime, readMarkerFile, writeMarkerFile
+from app.util import eastern, readMarkerFile, writeMarkerFile
 from app.xylem import (
     EXO_DATA_STREAMS,
     EXO_HEADER,
     MET_DATA_STREAMS,
     MET_HEADER,
+    StreamObservations,
     dump_xylem,
     get_observations,
 )
@@ -32,17 +33,18 @@ _data_dir = _module_dir / "data"
 
 
 def to_xylem_rows(
-    datastreams: dict[str, str], observations: dict[str, list[dict]], header: list[str]
+    datastreams: dict[str, str],
+    observations: dict[str, list[StreamObservations]],
+    header: list[str],
 ) -> list[list]:
     """Flatten observations into CSV rows, ordered by datastream."""
 
     # sort the data by datetime then stream name
     cooked: dict[datetime, list[str]] = {}
-    for ds_id in datastreams:
-        for obs in observations.get(ds_id, []):
-            dt = epoch_to_datetime(obs["phenomenonTime"])
-            cooked.setdefault(dt, [])
-            cooked[dt].append(obs["value"])
+    for stream_id in datastreams:
+        for obs in observations.get(stream_id, []):
+            cooked.setdefault(obs.timestamp, [])
+            cooked[obs.timestamp].append(obs.value)
 
     rows = [header]
     # cdmo returns data in reverse time order so sort it here.
@@ -167,7 +169,7 @@ def main(argv=None):
     # Harpswell data from Xylem
     if args.type is None or args.type == "H":
         print("Pulling Harpswell data...")
-        observations: dict[str, list[dict]] = get_observations(
+        observations: dict[str, list[StreamObservations]] = get_observations(
             list(EXO_DATA_STREAMS) + list(MET_DATA_STREAMS),
             start,
             end,
