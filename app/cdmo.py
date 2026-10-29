@@ -1,3 +1,4 @@
+import logging
 import xml.etree.ElementTree as ElTree
 from datetime import date, datetime, timedelta
 
@@ -7,6 +8,8 @@ from . import util
 from .soap import SoapClient
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 WATER_STATION = "welinwq"
 WATER_PARAMS = ["Temp", "DO_MgL", "SpCond", "cLevel", "Sal", "pH", "DO_pct", "Turb"]
@@ -23,7 +26,7 @@ def get_water_data(
     # ensure we have a multiple of 4 timestamps, so we have full days only.
     num_timestamps = len(data)
     if num_timestamps == 0 or num_timestamps % 4 != 0:
-        print(f"  Got {num_timestamps} from CDMO")
+        logger.error(f"Got {num_timestamps} from CDMO")
         if strict:
             fail = True
 
@@ -32,12 +35,14 @@ def get_water_data(
     fail = False
     for dt, values in data.items():
         if len(values) != expected_values:
-            print(f"  CDMO {dt} has {len(values)} values, expected {expected_values}")
+            logger.error(
+                f"CDMO {dt} has {len(values)} values, expected {expected_values}"
+            )
             if strict:
                 fail = True
 
     if fail:
-        raise Exception("Bad Data")  # noQA
+        raise util.ExpectedError("Bad data")
     return data
 
 
@@ -46,19 +51,12 @@ def get_cdmo_xml(
 ) -> bytes:
     # Because CDMO returns units of entire days using LST, we may need to adjust the dates we request.
     req_start_date, req_end_date = compute_cdmo_request_dates(start_time, end_time)
-
-    try:
-        param_str = ",".join(params)
-        xml: bytes = SoapClient.get_client().service.exportAllParamsDateRangeXMLNew(
-            station_id, req_start_date, req_end_date, param_str
-        )
-        return xml
-
-    except Exception as e:
-        print(
-            f"{type(e)} getting {param_str} data {req_start_date} to {req_end_date} from CDMO: {e}"
-        )
-        raise
+    logger.debug(f"requesting from cdmo: {req_start_date} - {req_end_date}")
+    param_str = ",".join(params)
+    xml: bytes = SoapClient.get_client().service.exportAllParamsDateRangeXMLNew(
+        station_id, req_start_date, req_end_date, param_str
+    )
+    return xml
 
 
 def parse_cdmo_xml(
@@ -71,22 +69,26 @@ def parse_cdmo_xml(
 
     root = ElTree.fromstring(xml)
     ensure_no_text(root)
+    read_cnt = keep_cnt = 0
     for record in root.findall(".//data"):  # use XPATH to dig out our data points
         # we use <utcStamp>, not <DateTimeStamp> because the latter is in LST, not sensitive to DST.
         date_str = record.findtext("./utcStamp")
         dt_in_utc = datetime.strptime(date_str or "", "%m/%d/%Y %H:%M").replace(
             tzinfo=util.utc
         )
+        read_cnt += 1
 
         if dt_in_utc < start_time or dt_in_utc > end_time:
             continue
 
+        keep_cnt += 1
         for param in params:
             val = record.findtext(f"./{param}")
             if val and val.strip():
                 data.setdefault(dt_in_utc, {})
                 data[dt_in_utc][param] = val
 
+    logger.debug(f"read {read_cnt} records, using {keep_cnt}")
     return data
 
 
@@ -97,7 +99,7 @@ def sort_values_by_param(data: dict[str, str]) -> list[str]:
     return cooked
 
 
-def to_cdmo_rows(water: dict[datetime, dict[str, str]]) -> list[list]:
+def to_cdmo_rows(water: dict[datetime, dict[str, str]]) -> list[list[str]]:
     rows: list[list] = [["datetime-utc"] + WATER_PARAMS]
 
     for obs_time, data in dict(sorted(water.items())).items():
@@ -113,8 +115,7 @@ def ensure_no_text(rootElement: ElTree.Element) -> None:
     try:
         message = text.strip() if text else ""
         if len(message) > 0:
-            print(f"  Received unexpected message from CDMO: {message}")
-            raise Exception(f"CDMO returned: {message}")  # noQA
+            raise util.ExpectedError(f"CDMO returned: {message}")
     except AttributeError:
         pass  # Not every payload has text in their data node
 
@@ -125,10 +126,10 @@ def compute_cdmo_request_dates(
     requested_start_date = start_time.date()
     requested_end_date = end_time.date()
 
-    if util.isDst(start_time) and start_time.hour < 1:
+    if util.is_dst(start_time) and start_time.hour < 1:
         requested_start_date -= timedelta(days=1)
 
-    if util.isDst(end_time) and end_time.hour < 1:
+    if util.is_dst(end_time) and end_time.hour < 1:
         requested_end_date -= timedelta(days=1)
 
     return requested_start_date, requested_end_date
