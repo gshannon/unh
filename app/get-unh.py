@@ -1,23 +1,14 @@
 #! /usr/bin/env python3
 
 import argparse
-import csv
+import logging
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.cdmo import get_water_data, to_cdmo_rows
-from app.ftp import send_files
-from app.util import eastern, readMarkerFile, writeMarkerFile
-from app.xylem import (
-    EXO_DATA_STREAMS,
-    MET_DATA_STREAMS,
-    StreamObservations,
-    get_observations,
-    to_timestamp_rows,
-)
+from app import cdmo, ftp, util, xylem
 
 MAXIMUM_WINDOW = timedelta(days=10)
 
@@ -26,6 +17,7 @@ END_MINUTE = 47
 # After this many minutes past any hour, the complete data for the previous hour should be ready.
 DATA_CUTOFF_MINUTES = 35
 
+logger = logging.getLogger(__name__)
 _module_dir = Path(__file__).parent.parent
 _data_dir = _module_dir / "data"
 
@@ -33,7 +25,7 @@ _data_dir = _module_dir / "data"
 def parse_time(value: str) -> datetime:
     """Parse an ISO datetime; a naive value is taken as US/Eastern."""
     dt = datetime.fromisoformat(value)
-    return dt.replace(tzinfo=eastern) if dt.tzinfo is None else dt
+    return dt.replace(tzinfo=util.eastern) if dt.tzinfo is None else dt
 
 
 def get_window(parser, args) -> tuple[datetime, datetime]:
@@ -43,37 +35,39 @@ def get_window(parser, args) -> tuple[datetime, datetime]:
     if args.start_time and not args.end_time:
         parser.error("--start requires --end")
 
-    auto_mode = False
     if args.start_time:
         start = parse_time(args.start_time)
         end = parse_time(args.end_time) if args.end_time else datetime.now(UTC)
         if start >= end:
             parser.error("Start time is after end time")
     else:
-        auto_mode = True
-        # auto mode. Read the last hour read from the marker file
+        auto_mode = True  # Read the last hour read from the marker file
 
         now = datetime.now(UTC).replace(second=0, microsecond=0)
         # Data for previous hour should be available after a certain number of minutes past the hour.
+        # If the current time is before that, the latest available will be the previous hour.
         # Determine the query end time of the most recent hour that should be available, to minute precision.
         latest_available_end = now.replace(minute=END_MINUTE) - timedelta(
             hours=(1 if now.minute > DATA_CUTOFF_MINUTES else 2)
         )
+        logger.debug(f"latest available should be {latest_available_end}")
 
-        marker_hour = readMarkerFile()
+        marker_hour = util.read_marker_file()
         if marker_hour is not None:
             # if args.verbose:
-            print(f"  Using marker file: {marker_hour}")
+            logger.debug(f"Last hour from marker file: {marker_hour}")
             start = marker_hour + timedelta(hours=1)
             end = latest_available_end
             if start >= end:
-                raise Exception(f"Data for {start} should not be available yet")  # noQA
+                raise util.ExpectedError(
+                    f"Data for {start} should not be available yet"
+                )
         else:
             # There's no marker file, so just try to get the previous hour's data.
             start = latest_available_end.replace(minute=0)
             end = latest_available_end
-            print(
-                f"  No marker file, defaulting to {start.strftime('%Y-%m-%d %H UTC')}"
+            logger.warning(
+                f"No marker file, defaulting to {start.strftime('%Y-%m-%d %H UTC')}"
             )
 
     if start >= end:
@@ -126,56 +120,66 @@ def process_params(argv=None):
 def main(argv=None):
 
     parser, args = process_params(argv)
+    # Keep the root logger at INFO so library debug output stays quiet;
+    # only this project's loggers ("app.*" and __main__) go to DEBUG with -v.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s: %(levelname)s %(module)s %(message)s",
+    )
+    if args.verbose:
+        logging.getLogger("app").setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
     start, end, auto_mode = get_window(parser, args)
     files_to_send = []
-    print(
-        f"{(datetime.now(UTC)).strftime('%a %b %d %H:%M:%S UTC')} Processing {start} to {end}"
-    )
+    logger.info(f"Processing {start} to {end}, auto_mode={auto_mode}")
 
     # Harpswell data from Xylem
     if args.type is None or args.type == "H":
-        print("  Pulling Harpswell data...")
-        observations: dict[str, list[StreamObservations]] = get_observations(
-            list(EXO_DATA_STREAMS) + list(MET_DATA_STREAMS),
-            start,
-            end,
-            strict=args.strict,
+        logger.info("Pulling Harpswell data...")
+        observations: dict[str, list[xylem.StreamObservations]] = (
+            xylem.get_observations(
+                list(xylem.EXO_DATA_STREAMS) + list(xylem.MET_DATA_STREAMS),
+                start,
+                end,
+                strict=args.strict,
+            )
         )
 
-        harpswell_filepath = build_outfilepath("harps-exo", start)
-        with harpswell_filepath.open("w", newline="") as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerows(to_timestamp_rows(EXO_DATA_STREAMS, observations))
-        files_to_send.append(harpswell_filepath)
+        data_filepath = build_outfilepath("harps-exo", start)
+        csv_data = xylem.to_timestamp_rows(xylem.EXO_DATA_STREAMS, observations)
+        util.write_data_file(data_filepath, csv_data)
+        files_to_send.append(data_filepath)
 
-        harpswell_filepath = build_outfilepath("harps-met", start)
-        with harpswell_filepath.open("w", newline="") as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerows(to_timestamp_rows(MET_DATA_STREAMS, observations))
-        files_to_send.append(harpswell_filepath)
+        data_filepath = build_outfilepath("harps-met", start)
+        csv_data = xylem.to_timestamp_rows(xylem.MET_DATA_STREAMS, observations)
+        util.write_data_file(data_filepath, csv_data)
+        files_to_send.append(data_filepath)
 
     # Wells data from CDMO
     if args.type is None or args.type == "W":
-        print("  Pulling Wells data...")
-        water = get_water_data(start, end, args.strict)
-        wells_filepath = build_outfilepath("wells", start)
-        with wells_filepath.open("w", newline="") as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerows(to_cdmo_rows(water))
-        files_to_send.append(wells_filepath)
+        logger.info("Pulling Wells data...")
+        water = cdmo.get_water_data(start, end, args.strict)
+        data_filepath = build_outfilepath("wells", start)
+        csv_data = cdmo.to_cdmo_rows(water)
+        util.write_data_file(data_filepath, csv_data)
+        files_to_send.append(data_filepath)
 
     if files_to_send and not args.dryrun:
-        send_files(*files_to_send)
+        ftp.send_files(*files_to_send)
 
     # If we made it this far, we succeeded. Write the marker file if in auto mode.
     if auto_mode and not args.dryrun:
-        writeMarkerFile(end)
+        util.write_marker_file(end)
+    else:
+        logger.debug(
+            f"Not writing marker file, auto_mode={auto_mode} dryrun={args.dryrun}"
+        )
 
 
 if __name__ == "__main__":
     try:
         main()
         sys.exit(0)
-    except Exception as e:  # noQA
-        print(e)
-        sys.exit(1)
+    except util.ExpectedError as e:
+        logger.error(e)
+        sys.exit(0)

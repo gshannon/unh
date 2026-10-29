@@ -1,21 +1,19 @@
+import logging
 from datetime import datetime, timedelta
 
 import requests
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    RootModel,
-    field_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
 
 from app.security import get_token
-from app.util import datetime_to_epoch_ms, epoch_to_datetime
+
+from . import util
 
 # Sandbox urls:
 # OBSERVATIONS_URL = (
 #     "https://cloudfront-gc.xylem-cloud.com/xcloud/data-export/observations"
 # )
+
+logger = logging.getLogger(__name__)
 
 OBSERVATIONS_URL = "https://cloud.xylem.com/xcloud/data-export/observations"
 
@@ -97,6 +95,13 @@ class XylemApiError(Exception):
         super().__init__(f"{status_code} {error_code or ''}: {message or ''}".strip())
 
 
+datetime_to_epoch_ms = lambda dt: int(dt.timestamp() * 1000)
+
+epoch_to_datetime = lambda epoch_time_ms: datetime.fromtimestamp(
+    epoch_time_ms / 1000, tz=util.utc
+)
+
+
 def get_stream_name(id: str) -> str | None:
     return EXO_DATA_STREAMS.get(id, None) or MET_DATA_STREAMS.get(id, None)
 
@@ -134,13 +139,7 @@ def get_observations(
     end_time: datetime,
     strict: bool = False,
 ) -> dict[str, list[StreamObservations]]:
-    """Fetch observations for the given datastreams and time range.
-
-    Returns a dict keyed by datastream id; each value is a list of
-    observations with phenomenonTime (epoch ms) and value.
-    Raises ValueError if the range is longer than the API's limit,
-    or XylemApiError on an error response.
-    """
+    """Fetch observations for the given datastreams and time range."""
     if end_time - start_time > MAX_OBSERVATION_WINDOW:
         raise ValueError(
             f"Time window of {end_time - start_time} exceeds the "
@@ -156,9 +155,12 @@ def get_observations(
 
     expected_streams = len(EXO_DATA_STREAMS) + len(MET_DATA_STREAMS)
     num_streams = len(obs_dict.root)
+    logger.debug(f"pulled data for {num_streams} from xylem")
     fail = False
     if num_streams != expected_streams:
-        print(f"  Expected {expected_streams} keys from Xylem but got {num_streams}")
+        logger.error(
+            f"Expected {expected_streams} keys from Xylem but got {num_streams}"
+        )
         if strict:
             fail = True
 
@@ -167,15 +169,15 @@ def get_observations(
     for stream_id, obs_list in obs_dict.root.items():
         name = get_stream_name(stream_id)
         if name is None:
-            raise Exception(f"stream {stream_id} is not valid")  # noQA
+            raise RuntimeError(f"stream {stream_id} is not valid")
         if len(obs_list) == 0 or len(obs_list) % 4 != 0:
-            print(f"  Xylem {name} has {len(obs_list)} values")
+            logger.error(f"Xylem {name} has {len(obs_list)} values")
             if strict:
                 fail = True
         data[name] = obs_list
 
     if fail:
-        raise Exception("Bad Data")  # noQA
+        raise util.ExpectedError("Bad data")
     return data
 
 
