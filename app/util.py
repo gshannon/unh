@@ -1,6 +1,7 @@
 import csv
 import logging
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -13,8 +14,31 @@ _module_dir = Path(__file__).parent
 _marker_file_path = _module_dir / MARKER_FILE
 
 
-class ExpectedError(Exception):
+@dataclass
+class Hour:
+    date: date
+    hour: int
+    zone: ZoneInfo
+
+    def next(self):
+        _thistime = self.as_datetime()
+        _nexttime = _thistime + timedelta(hours=1)
+        _next = Hour(_nexttime.date(), _nexttime.hour, _nexttime.tzinfo)
+        logger.debug(f"next = {_next}")
+        return _next
+
+    def as_datetime(self):
+        return datetime.combine(self.date, time(self.hour), self.zone)
+
+
+class AppError(Exception):
     """Raised for custom error scenarios."""
+
+
+def parse_time(value: str) -> datetime:
+    """Parse an ISO datetime; a naive value is taken as US/Eastern."""
+    dt = datetime.fromisoformat(value)
+    return dt.replace(tzinfo=eastern) if dt.tzinfo is None else dt
 
 
 def is_dst(dt: datetime) -> bool:

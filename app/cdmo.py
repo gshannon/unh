@@ -20,29 +20,28 @@ def get_water_data(
     start_time: datetime, end_time: datetime, strict: bool = False
 ) -> dict[datetime, dict[str, str]]:
     xml: bytes = get_cdmo_xml(WATER_STATION, start_time, end_time, WATER_PARAMS)
-    data = parse_cdmo_xml(start_time, end_time, WATER_PARAMS, xml)
+    data: dict[datetime, dict[str, str]] = parse_cdmo_xml(
+        start_time, end_time, WATER_PARAMS, xml
+    )
 
     # Before returning it, do some quality control.  First,
     # ensure we have a multiple of 4 timestamps, so we have full days only.
     num_timestamps = len(data)
     if num_timestamps == 0 or num_timestamps % 4 != 0:
-        logger.error(f"Got {num_timestamps} from CDMO")
+        logger.warning(f"Got {num_timestamps} datetimes from CDMO")
         if strict:
-            fail = True
+            raise util.AppError("Bad data")
 
     # Now check for the correct number of values for each time.
     expected_values = len(WATER_PARAMS)
-    fail = False
     for dt, values in data.items():
         if len(values) != expected_values:
-            logger.error(
+            logger.warning(
                 f"CDMO {dt} has {len(values)} values, expected {expected_values}"
             )
             if strict:
-                fail = True
+                raise util.AppError("Bad data")
 
-    if fail:
-        raise util.ExpectedError("Bad data")
     return data
 
 
@@ -99,11 +98,16 @@ def sort_values_by_param(data: dict[str, str]) -> list[str]:
     return cooked
 
 
-def to_cdmo_rows(water: dict[datetime, dict[str, str]]) -> list[list[str]]:
+def to_cdmo_rows(
+    water: dict[datetime, dict[str, str]],
+    start: datetime,
+    end: datetime,
+) -> list[list[str]]:
     rows: list[list] = [["datetime-utc"] + WATER_PARAMS]
 
     for obs_time, data in dict(sorted(water.items())).items():
-        rows.append([obs_time.isoformat()] + sort_values_by_param(data))
+        if start <= obs_time <= end:
+            rows.append([obs_time.isoformat()] + sort_values_by_param(data))
     return rows
 
 
@@ -115,7 +119,7 @@ def ensure_no_text(rootElement: ElTree.Element) -> None:
     try:
         message = text.strip() if text else ""
         if len(message) > 0:
-            raise util.ExpectedError(f"CDMO returned: {message}")
+            raise util.AppError(f"CDMO returned: {message}")
     except AttributeError:
         pass  # Not every payload has text in their data node
 

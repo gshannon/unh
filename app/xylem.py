@@ -155,14 +155,13 @@ def get_observations(
 
     expected_streams = len(EXO_DATA_STREAMS) + len(MET_DATA_STREAMS)
     num_streams = len(obs_dict.root)
-    logger.debug(f"pulled data for {num_streams} from xylem")
-    fail = False
+    logger.debug(f"pulled data for {num_streams} data streams from xylem")
     if num_streams != expected_streams:
         logger.error(
-            f"Expected {expected_streams} keys from Xylem but got {num_streams}"
+            f"Expected {expected_streams} streams from Xylem but got {num_streams}"
         )
         if strict:
-            fail = True
+            raise util.AppError("Bad data")
 
     # sanity check and convert stream ids to name
     data: dict[str, list[StreamObservations]] = {}
@@ -171,19 +170,19 @@ def get_observations(
         if name is None:
             raise RuntimeError(f"stream {stream_id} is not valid")
         if len(obs_list) == 0 or len(obs_list) % 4 != 0:
-            logger.error(f"Xylem {name} has {len(obs_list)} values")
+            logger.error(f"Stream {name} has {len(obs_list)} values")
             if strict:
-                fail = True
+                raise util.AppError("Bad data")
         data[name] = obs_list
 
-    if fail:
-        raise util.ExpectedError("Bad data")
     return data
 
 
 def to_timestamp_rows(
     datastreams: dict[str, str],
     observations: dict[str, list[StreamObservations]],
+    start: datetime,
+    end: datetime,
 ) -> list[list]:
     """Flatten observations into CSV rows, ordered by datastream."""
 
@@ -195,8 +194,9 @@ def to_timestamp_rows(
     # observations contain both EXO and MET. Only consider the ones with names contained in the header.
     for name in datastreams.values():
         for obs in observations.get(name, []):  # restricts it to EXO or MET datastreams
-            cooked.setdefault(obs.timestamp, [])
-            cooked[obs.timestamp].append(obs.value)
+            if start <= obs.timestamp <= end:
+                cooked.setdefault(obs.timestamp, [])
+                cooked[obs.timestamp].append(obs.value)
 
     rows = [header]
     # cdmo returns data in reverse time order so sort it here.

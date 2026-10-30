@@ -22,12 +22,6 @@ _module_dir = Path(__file__).parent.parent
 _data_dir = _module_dir / "data"
 
 
-def parse_time(value: str) -> datetime:
-    """Parse an ISO datetime; a naive value is taken as US/Eastern."""
-    dt = datetime.fromisoformat(value)
-    return dt.replace(tzinfo=util.eastern) if dt.tzinfo is None else dt
-
-
 def get_window(parser, args) -> tuple[datetime, datetime]:
     """Return (start, end) from --start or --start/--end, validating the combination."""
     if args.end_time and not args.start_time:
@@ -35,14 +29,14 @@ def get_window(parser, args) -> tuple[datetime, datetime]:
     if args.start_time and not args.end_time:
         parser.error("--start requires --end")
 
+    auto_mode = True  # Read the last hour read from the marker file
     if args.start_time:
-        start = parse_time(args.start_time)
-        end = parse_time(args.end_time) if args.end_time else datetime.now(UTC)
+        start = util.parse_time(args.start_time)
+        end = util.parse_time(args.end_time) if args.end_time else datetime.now(UTC)
         if start >= end:
             parser.error("Start time is after end time")
+        auto_mode = False
     else:
-        auto_mode = True  # Read the last hour read from the marker file
-
         now = datetime.now(UTC).replace(second=0, microsecond=0)
         # Data for previous hour should be available after a certain number of minutes past the hour.
         # If the current time is before that, the latest available will be the previous hour.
@@ -59,9 +53,7 @@ def get_window(parser, args) -> tuple[datetime, datetime]:
             start = marker_hour + timedelta(hours=1)
             end = latest_available_end
             if start >= end:
-                raise util.ExpectedError(
-                    f"Data for {start} should not be available yet"
-                )
+                raise util.AppError(f"Data for {start} should not be available yet")
         else:
             # There's no marker file, so just try to get the previous hour's data.
             start = latest_available_end.replace(minute=0)
@@ -78,7 +70,8 @@ def get_window(parser, args) -> tuple[datetime, datetime]:
 
 
 def build_outfilepath(prefix: str, start: datetime) -> str:
-    return _data_dir / f"{prefix}-{start.strftime('%Y%m%d%H%M')}.csv"
+    as_utc = start.astimezone(util.utc)
+    return _data_dir / f"{prefix}-{as_utc.strftime('%Y%m%d%H%M')}.csv"
 
 
 def process_params(argv=None):
@@ -109,7 +102,9 @@ def process_params(argv=None):
         help="data type: W=Wells, H=Harpswell (default=both)",
     )
     parser.add_argument("-d", "--dryrun", action="store_true", help="Do not ftp if set")
-    parser.add_argument("--strict", action="store_true", help="Fail if missing data")
+    parser.add_argument(
+        "--nostrict", action="store_true", help="Do not fail if missing data"
+    )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Print extra diagnostics"
     )
@@ -131,7 +126,9 @@ def main(argv=None):
         logger.setLevel(logging.DEBUG)
     start, end, auto_mode = get_window(parser, args)
     files_to_send = []
-    logger.info(f"Processing {start} to {end}, auto_mode={auto_mode}")
+    logger.info(
+        f"Processing {start} to {end}, auto_mode={auto_mode}, nostrict={args.nostrict}"
+    )
 
     # Harpswell data from Xylem
     if args.type is None or args.type == "H":
@@ -141,37 +138,59 @@ def main(argv=None):
                 list(xylem.EXO_DATA_STREAMS) + list(xylem.MET_DATA_STREAMS),
                 start,
                 end,
-                strict=args.strict,
+                strict=not args.nostrict,
             )
         )
 
-        data_filepath = build_outfilepath("harps-exo", start)
-        csv_data = xylem.to_timestamp_rows(xylem.EXO_DATA_STREAMS, observations)
-        util.write_data_file(data_filepath, csv_data)
-        files_to_send.append(data_filepath)
+        loop_hour = util.Hour(start.date(), start.hour, start.tzinfo)
+        while loop_hour.as_datetime() < end:
+            _start = loop_hour.as_datetime()
+            _end = _start.replace(minute=END_MINUTE)
 
-        data_filepath = build_outfilepath("harps-met", start)
-        csv_data = xylem.to_timestamp_rows(xylem.MET_DATA_STREAMS, observations)
-        util.write_data_file(data_filepath, csv_data)
-        files_to_send.append(data_filepath)
+            data_filepath = build_outfilepath("harps-exo", _start)
+            csv_data = xylem.to_timestamp_rows(
+                xylem.EXO_DATA_STREAMS, observations, _start, _end
+            )
+            util.write_data_file(data_filepath, csv_data)
+            files_to_send.append(data_filepath)
+
+            data_filepath = build_outfilepath("harps-met", _start)
+            csv_data = xylem.to_timestamp_rows(
+                xylem.MET_DATA_STREAMS, observations, _start, _end
+            )
+            util.write_data_file(data_filepath, csv_data)
+            files_to_send.append(data_filepath)
+
+            loop_hour = loop_hour.next()
 
     # Wells data from CDMO
     if args.type is None or args.type == "W":
         logger.info("Pulling Wells data...")
-        water = cdmo.get_water_data(start, end, args.strict)
-        data_filepath = build_outfilepath("wells", start)
-        csv_data = cdmo.to_cdmo_rows(water)
-        util.write_data_file(data_filepath, csv_data)
-        files_to_send.append(data_filepath)
+        water = cdmo.get_water_data(start, end, not args.nostrict)
+
+        loop_hour = util.Hour(start.date(), start.hour, start.tzinfo)
+        while loop_hour.as_datetime() < end:
+            _start = loop_hour.as_datetime()
+            _end = _start.replace(minute=END_MINUTE)
+
+            data_filepath = build_outfilepath("wells", _start)
+            csv_data = cdmo.to_cdmo_rows(water, _start, _end)
+            util.write_data_file(data_filepath, csv_data)
+            files_to_send.append(data_filepath)
+            loop_hour = loop_hour.next()
 
     if files_to_send and not args.dryrun:
         ftp.send_files(*files_to_send)
+    else:
+        logger.debug(
+            f"Not sending {len(files_to_send)} ftp files, dryrun={args.dryrun}, files_to_send={len(files_to_send)}"
+        )
 
     # If we made it this far, we succeeded. Write the marker file if in auto mode.
     if auto_mode and not args.dryrun:
         util.write_marker_file(end)
     else:
-        logger.debug(
+        logger.info(
             f"Not writing marker file, auto_mode={auto_mode} dryrun={args.dryrun}"
         )
 
@@ -180,6 +199,6 @@ if __name__ == "__main__":
     try:
         main()
         sys.exit(0)
-    except util.ExpectedError as e:
+    except util.AppError as e:
         logger.error(e)
         sys.exit(0)
