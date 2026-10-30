@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import requests
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
@@ -151,35 +152,46 @@ def get_observations(
         "until": datetime_to_epoch_ms(end_time),
     }
     json_content = _get(OBSERVATIONS_URL, get_token(), params=params)
-    obs_dict = StreamObservations.model_validate(json_content, strict=True)
+    obs_dict = normalize_xylem_json(json_content)
+    if not is_valid_content(obs_dict) and strict:
+        raise util.AppError("Bad data")
 
+    return obs_dict
+
+
+def is_valid_content(obs_dict: dict[str, list[Observation]]) -> bool:
     expected_streams = len(EXO_DATA_STREAMS) + len(MET_DATA_STREAMS)
-    num_streams = len(obs_dict.root)
+    num_streams = len(obs_dict)
     logger.debug(f"pulled data for {num_streams} data streams from xylem")
+    valid = True
+
     if num_streams != expected_streams:
         logger.error(
             f"Expected {expected_streams} streams from Xylem but got {num_streams}"
         )
-        if strict:
-            raise util.AppError("Bad data")
+        valid = False
 
-    # sanity check and convert stream ids to name
-    data: dict[str, list[StreamObservations]] = {}
+    for name, obs_list in obs_dict.items():
+        if len(obs_list) == 0 or len(obs_list) % 4 != 0:
+            logger.error(f"Stream {name} has {len(obs_list)} values")
+            valid = False
+
+    return valid
+
+
+def normalize_xylem_json(json_content: dict) -> dict[str, list[Observation]]:
+    obs_dict = StreamObservations.model_validate(json_content, strict=True)
+    normal: dict[str, list[StreamObservations]] = {}
     for stream_id, obs_list in obs_dict.root.items():
         name = get_stream_name(stream_id)
         if name is None:
             raise RuntimeError(f"stream {stream_id} is not valid")
-        if len(obs_list) == 0 or len(obs_list) % 4 != 0:
-            logger.error(f"Stream {name} has {len(obs_list)} values")
-            if strict:
-                raise util.AppError("Bad data")
-        data[name] = obs_list
-
-    return data
+        normal[name] = obs_list
+    return normal
 
 
 def to_timestamp_rows(
-    datastreams: dict[str, str],
+    stream_names: list[str],
     observations: dict[str, list[StreamObservations]],
     start: datetime,
     end: datetime,
@@ -187,19 +199,23 @@ def to_timestamp_rows(
     """Flatten observations into CSV rows, ordered by datastream."""
 
     # The order of datastreams.values() will match the order
-    header = ["datetime-utc"] + list(datastreams.values())
+    header = ["datetime-utc"] + stream_names
 
     # sort the data by datetime, then stream name
     cooked: dict[datetime, list[str]] = {}
     # observations contain both EXO and MET. Only consider the ones with names contained in the header.
-    for name in datastreams.values():
-        for obs in observations.get(name, []):  # restricts it to EXO or MET datastreams
+    for name in stream_names:
+        # restrict it to only EXO or MET datastreams
+        stream_obs = observations.get(name, [])
+        if len(stream_obs) != 4:
+            raise util.AppError(f"{name} has {len(stream_obs)} values, expected 4")
+
+        for obs in stream_obs:
             if start <= obs.timestamp <= end:
                 cooked.setdefault(obs.timestamp, [])
                 cooked[obs.timestamp].append(obs.value)
 
     rows = [header]
-    # cdmo returns data in reverse time order so sort it here.
     for obs_time, data in dict(sorted(cooked.items())).items():
         rows.append([obs_time.isoformat()] + data)
     return rows

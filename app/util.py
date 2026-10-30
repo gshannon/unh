@@ -1,4 +1,5 @@
 import csv
+import json
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
@@ -70,3 +71,8 @@ def write_data_file(filepath: Path, data: list[list[str]]) -> None:
     with filepath.open("w", newline="") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerows(data)
+
+
+def dump(file_path: Path, json_content: dict) -> None:
+    with open(file_path, "w", encoding="utf-8") as file:
+        json.dump(json_content, file, indent=4)

@@ -94,7 +94,10 @@ def parse_cdmo_xml(
 def sort_values_by_param(data: dict[str, str]) -> list[str]:
     cooked: list[str] = []
     for key in WATER_PARAMS:
-        cooked.append(data[key])
+        val = data.get(key, "")
+        if len(val) == 0:
+            logger.warning(f"No data returned for {key}")
+        cooked.append(val)
     return cooked
 
 

@@ -147,16 +147,18 @@ def main(argv=None):
             _start = loop_hour.as_datetime()
             _end = _start.replace(minute=END_MINUTE)
 
+            # EXO data
             data_filepath = build_outfilepath("harps-exo", _start)
             csv_data = xylem.to_timestamp_rows(
-                xylem.EXO_DATA_STREAMS, observations, _start, _end
+                list(xylem.EXO_DATA_STREAMS.values()), observations, _start, _end
             )
             util.write_data_file(data_filepath, csv_data)
             files_to_send.append(data_filepath)
 
+            # MET data
             data_filepath = build_outfilepath("harps-met", _start)
             csv_data = xylem.to_timestamp_rows(
-                xylem.MET_DATA_STREAMS, observations, _start, _end
+                list(xylem.MET_DATA_STREAMS.values()), observations, _start, _end
             )
             util.write_data_file(data_filepath, csv_data)
             files_to_send.append(data_filepath)
