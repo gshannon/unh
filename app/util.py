@@ -1,45 +1,47 @@
 import csv
 import json
 import logging
-from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 utc = ZoneInfo("UTC")
-eastern = ZoneInfo("America/New_York")
 
-MARKER_FILE = ".lastend"
-_module_dir = Path(__file__).parent
-_marker_file_path = _module_dir / MARKER_FILE
+# Note:
+# EXO comes in at 01:04 past the 15-min.
+# MET comes in at 00:04 past the 15-min.
 
 
-@dataclass
-class Hour:
-    date: date
-    hour: int
-    zone: ZoneInfo
+class JobType(Enum):
+    WELLS = "wells"
+    HARPSWELL_EXO = "harpsexo"
+    HARPSWELL_MET = "harpsmet"
 
-    def next(self):
-        _thistime = self.as_datetime()
-        _nexttime = _thistime + timedelta(hours=1)
-        _next = Hour(_nexttime.date(), _nexttime.hour, _nexttime.tzinfo)
-        logger.debug(f"next = {_next}")
-        return _next
 
-    def as_datetime(self):
-        return datetime.combine(self.date, time(self.hour), self.zone)
+NAN = "NaN"
+
+_root_dir = Path(__file__).parent.parent
 
 
 class AppError(Exception):
     """Raised for custom error scenarios."""
 
 
+def assure_utc(dt: datetime) -> None:
+    if dt.dst() is not None and dt.dst() != timedelta(0):
+        raise RuntimeError()
+
+
+def build_outfilepath(job_type: JobType, dt: datetime) -> Path:
+    return _root_dir / "data" / f"{job_type.value}-{dt.strftime('%Y%m%d-%H%M')}.csv"
+
+
 def parse_time(value: str) -> datetime:
-    """Parse an ISO datetime; a naive value is taken as US/Eastern."""
+    """Parse an ISO datetime; a naive value is taken as UTC."""
     dt = datetime.fromisoformat(value)
-    return dt.replace(tzinfo=eastern) if dt.tzinfo is None else dt
+    return dt.replace(tzinfo=utc) if dt.tzinfo is None else dt
 
 
 def is_dst(dt: datetime) -> bool:
@@ -48,20 +50,22 @@ def is_dst(dt: datetime) -> bool:
     return dst is not None and dst > timedelta(hours=0)
 
 
-def write_marker_file(dt: datetime) -> None:
-    logger.debug(f"writing to marker file: {dt}")
-    with _marker_file_path.open("w") as file:
-        last_hour = dt.replace(minute=0, second=0, microsecond=0)
-        file.write(last_hour.isoformat())
+def write_marker_file(job_type: JobType, iso: str) -> None:
+    filename = f".last-{job_type.value}"
+    filepath = Path(_root_dir) / filename
+    logger.debug(f"writing to marker file: {iso}")
+    with filepath.open("w") as file:
+        file.write(iso)
 
 
-def read_marker_file() -> datetime:
-    if _marker_file_path.is_file():
-        with _marker_file_path.open("r") as f:
+def read_marker_file(job_type: JobType) -> datetime:
+    filename = f".last-{job_type.value}"
+    filepath = Path(f"{_root_dir / filename}")
+    if filepath.is_file():
+        with filepath.open("r") as f:
             iso_string = f.read().strip()
-        return datetime.fromisoformat(iso_string).replace(
-            minute=0, second=0, microsecond=0
-        )
+        logger.debug(f"Marker file contents: {iso_string}")
+        return datetime.fromisoformat(iso_string).replace(second=0, microsecond=0)
     else:
         return None
 
@@ -73,6 +77,18 @@ def write_data_file(filepath: Path, data: list[list[str]]) -> None:
         writer.writerows(data)
 
 
-def dump(file_path: Path, json_content: dict) -> None:
+def dump_json(file_path: Path, json_content: dict) -> None:
     with open(file_path, "w", encoding="utf-8") as file:
         json.dump(json_content, file, indent=4)
+
+
+def dump_xml(file_path: Path, xml: bytes) -> None:
+    decoded = bytes.fromhex(xml.hex()).decode("ASCII")
+    with open(file_path, "w") as file:
+        file.write(decoded)
+
+
+def read_xml(file_path: Path) -> bytes:
+    with file_path.open("r") as f:
+        s = f.read()
+        return bytes(s, "utf-8")

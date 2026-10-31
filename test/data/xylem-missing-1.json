@@ -1,0 +1,53 @@
+{
+  "2282799": [
+    {
+      "phenomenonTime": 1793354464000,
+      "resultTime": 1793355466004,
+      "value": 7.99
+    },
+    {
+      "phenomenonTime": 1793356264000,
+      "resultTime": 1793357255072,
+      "value": 7.96
+    },
+    {
+      "phenomenonTime": 1793357164000,
+      "resultTime": 1793358193021,
+      "value": 7.98
+    }
+  ],
+  "2282805": [
+    {
+      "phenomenonTime": 1793354464000,
+      "resultTime": 1793355466004,
+      "value": 11.491
+    },
+    {
+      "phenomenonTime": 1793355364000,
+      "resultTime": 1793356374089,
+      "value": 11.489
+    },
+    {
+      "phenomenonTime": 1793357164000,
+      "resultTime": 1793358193021,
+      "value": 11.487
+    }
+  ],
+  "2282795": [
+    {
+      "phenomenonTime": 1793354464000,
+      "resultTime": 1793355466004,
+      "value": 2.625
+    },
+    {
+      "phenomenonTime": 1793355364000,
+      "resultTime": 1793356374089,
+      "value": 2.475
+    },
+    {
+      "phenomenonTime": 1793356264000,
+      "resultTime": 1793357255072,
+      "value": 2.326
+    }
+  ]
+}

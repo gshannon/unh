@@ -11,38 +11,18 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+CLEVEL = "cLevel"
 WATER_STATION = "welinwq"
-WATER_PARAMS = ["Temp", "DO_MgL", "SpCond", "cLevel", "Sal", "pH", "DO_pct", "Turb"]
+WATER_PARAMS = ["Temp", "DO_MgL", "SpCond", CLEVEL, "Sal", "pH", "DO_pct", "Turb"]
 MAX_CDMO_WINDOW = 10  # 10 days max
 
 
 def get_water_data(
     start_time: datetime, end_time: datetime, strict: bool = False
 ) -> dict[datetime, dict[str, str]]:
+
     xml: bytes = get_cdmo_xml(WATER_STATION, start_time, end_time, WATER_PARAMS)
-    data: dict[datetime, dict[str, str]] = parse_cdmo_xml(
-        start_time, end_time, WATER_PARAMS, xml
-    )
-
-    # Before returning it, do some quality control.  First,
-    # ensure we have a multiple of 4 timestamps, so we have full days only.
-    num_timestamps = len(data)
-    if num_timestamps == 0 or num_timestamps % 4 != 0:
-        logger.warning(f"Got {num_timestamps} datetimes from CDMO")
-        if strict:
-            raise util.AppError("Bad data")
-
-    # Now check for the correct number of values for each time.
-    expected_values = len(WATER_PARAMS)
-    for dt, values in data.items():
-        if len(values) != expected_values:
-            logger.warning(
-                f"CDMO {dt} has {len(values)} values, expected {expected_values}"
-            )
-            if strict:
-                raise util.AppError("Bad data")
-
-    return data
+    return parse_cdmo_xml(start_time, end_time, xml, strict)
 
 
 def get_cdmo_xml(
@@ -50,16 +30,20 @@ def get_cdmo_xml(
 ) -> bytes:
     # Because CDMO returns units of entire days using LST, we may need to adjust the dates we request.
     req_start_date, req_end_date = compute_cdmo_request_dates(start_time, end_time)
-    logger.debug(f"requesting from cdmo: {req_start_date} - {req_end_date}")
+    logger.debug(f"requesting from cdmo: {req_start_date} to {req_end_date}")
     param_str = ",".join(params)
     xml: bytes = SoapClient.get_client().service.exportAllParamsDateRangeXMLNew(
         station_id, req_start_date, req_end_date, param_str
     )
+    # util.dump_xml(Path("cdmo.xml"), xml)
     return xml
 
 
 def parse_cdmo_xml(
-    start_time: datetime, end_time: datetime, params: list[str], xml: bytes
+    start_time: datetime,
+    end_time: datetime,
+    xml: bytes,
+    strict: bool,
 ) -> dict[datetime, dict[str, str]]:
     data: dict[datetime, dict[str, str]] = {}
 
@@ -81,36 +65,57 @@ def parse_cdmo_xml(
             continue
 
         keep_cnt += 1
-        for param in params:
+        for param in WATER_PARAMS:
             val = record.findtext(f"./{param}")
             if val and val.strip():
                 data.setdefault(dt_in_utc, {})
                 data[dt_in_utc][param] = val
 
-    logger.debug(f"read {read_cnt} records, using {keep_cnt}")
-    return data
+    logger.debug(f"read {read_cnt} records, considering {keep_cnt}")
+
+    # Check for the correct number of values for each time.  Remove all *trailing* records with
+    # missing cLevel.  If cLevel is missing in the middle, it is allowed nd will be converted to NaN later.
+    # Here we depend on the fact that the data keys are in reverse chronological order.
+    expected_values = len(WATER_PARAMS)
+    clevel_found = False
+    for dt in list(data.keys()):  # don't use items() b/c we might mutate the dict
+        values = data[dt]
+        num_values = len(values)
+        if num_values == expected_values:
+            clevel_found = True
+        elif num_values == expected_values - 1 and not CLEVEL in values:
+            # It's only missing cLevel.
+            if not clevel_found:
+                # It's missing at the end of the data.
+                # This is an expected case and we can just delete it.
+                logger.warning(f"{dt} is missing {CLEVEL}, on end, deleting")
+                del data[dt]
+            else:
+                logger.warning(f"{dt} is missing {CLEVEL}, will return {util.NAN}")
+        else:
+            logger.error(f"{dt} has {num_values} values, expected {expected_values}")
+            if strict:
+                raise util.AppError("Bad data")
+
+    # Finally sort it by datetime ascending
+    return dict(sorted(data.items()))
 
 
 def sort_values_by_param(data: dict[str, str]) -> list[str]:
     cooked: list[str] = []
     for key in WATER_PARAMS:
-        val = data.get(key, "")
-        if len(val) == 0:
+        val = data.get(key, util.NAN)
+        if len(val) == util.NAN:
             logger.warning(f"No data returned for {key}")
         cooked.append(val)
     return cooked
 
 
-def to_cdmo_rows(
-    water: dict[datetime, dict[str, str]],
-    start: datetime,
-    end: datetime,
-) -> list[list[str]]:
+def to_cdmo_rows(water: dict[datetime, dict[str, str]]) -> list[list[str]]:
     rows: list[list] = [["datetime-utc"] + WATER_PARAMS]
 
     for obs_time, data in dict(sorted(water.items())).items():
-        if start <= obs_time <= end:
-            rows.append([obs_time.isoformat()] + sort_values_by_param(data))
+        rows.append([obs_time.isoformat()] + sort_values_by_param(data))
     return rows
 
 
