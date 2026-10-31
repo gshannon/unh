@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import requests
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
@@ -8,11 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
 from app.security import get_token
 
 from . import util
-
-# Sandbox urls:
-# OBSERVATIONS_URL = (
-#     "https://cloudfront-gc.xylem-cloud.com/xcloud/data-export/observations"
-# )
 
 logger = logging.getLogger(__name__)
 
@@ -135,48 +129,27 @@ def _get(url: str, token: str, params: dict | None = None):
 
 
 def get_observations(
-    datastream_ids: list[str],
-    start_time: datetime,
-    end_time: datetime,
-    strict: bool = False,
+    start: datetime,
+    end: datetime,
+    stream_ids: list[str],
 ) -> dict[str, list[StreamObservations]]:
     """Fetch observations for the given datastreams and time range."""
-    if end_time - start_time > MAX_OBSERVATION_WINDOW:
+    if end - start > MAX_OBSERVATION_WINDOW:
         raise ValueError(
-            f"Time window of {end_time - start_time} exceeds the "
+            f"Time window of {end - start} exceeds the "
             f"{MAX_OBSERVATION_WINDOW.days}-day limit"
         )
+
     params = {
-        "datastreamIds": ",".join(datastream_ids),
-        "from": datetime_to_epoch_ms(start_time),
-        "until": datetime_to_epoch_ms(end_time),
+        "datastreamIds": ",".join(stream_ids),
+        "from": datetime_to_epoch_ms(start),
+        "until": datetime_to_epoch_ms(end),
     }
     json_content = _get(OBSERVATIONS_URL, get_token(), params=params)
+    # util.dump_json(Path("xylem.json"), json_content)
     obs_dict = normalize_xylem_json(json_content)
-    if not is_valid_content(obs_dict) and strict:
-        raise util.AppError("Bad data")
 
     return obs_dict
-
-
-def is_valid_content(obs_dict: dict[str, list[Observation]]) -> bool:
-    expected_streams = len(EXO_DATA_STREAMS) + len(MET_DATA_STREAMS)
-    num_streams = len(obs_dict)
-    logger.debug(f"pulled data for {num_streams} data streams from xylem")
-    valid = True
-
-    if num_streams != expected_streams:
-        logger.error(
-            f"Expected {expected_streams} streams from Xylem but got {num_streams}"
-        )
-        valid = False
-
-    for name, obs_list in obs_dict.items():
-        if len(obs_list) == 0 or len(obs_list) % 4 != 0:
-            logger.error(f"Stream {name} has {len(obs_list)} values")
-            valid = False
-
-    return valid
 
 
 def normalize_xylem_json(json_content: dict) -> dict[str, list[Observation]]:
@@ -186,36 +159,32 @@ def normalize_xylem_json(json_content: dict) -> dict[str, list[Observation]]:
         name = get_stream_name(stream_id)
         if name is None:
             raise RuntimeError(f"stream {stream_id} is not valid")
-        normal[name] = obs_list
+        if len(obs_list) == 0:
+            logger.warning(f"No observations returned for {name}")
+        else:
+            normal[name] = obs_list
     return normal
 
 
 def to_timestamp_rows(
-    stream_names: list[str],
-    observations: dict[str, list[StreamObservations]],
-    start: datetime,
-    end: datetime,
+    stream_names: list[str], observations: dict[str, list[StreamObservations]]
 ) -> list[list]:
-    """Flatten observations into CSV rows, ordered by datastream."""
-
-    # The order of datastreams.values() will match the order
-    header = ["datetime-utc"] + stream_names
+    """Flatten observations into CSV rows, ordered by datetime."""
 
     # sort the data by datetime, then stream name
-    cooked: dict[datetime, list[str]] = {}
-    # observations contain both EXO and MET. Only consider the ones with names contained in the header.
+    pivot: dict[datetime, dict[str, float]] = {}
     for name in stream_names:
-        # restrict it to only EXO or MET datastreams
-        stream_obs = observations.get(name, [])
-        if len(stream_obs) != 4:
-            raise util.AppError(f"{name} has {len(stream_obs)} values, expected 4")
-
+        stream_obs: list[StreamObservations] = observations.get(name, [])
         for obs in stream_obs:
-            if start <= obs.timestamp <= end:
-                cooked.setdefault(obs.timestamp, [])
-                cooked[obs.timestamp].append(obs.value)
+            pivot.setdefault(obs.timestamp, {})
+            pivot[obs.timestamp][name] = obs.value
 
-    rows = [header]
-    for obs_time, data in dict(sorted(cooked.items())).items():
-        rows.append([obs_time.isoformat()] + data)
+    # Build the csv data. This forces all rows to be equal length, using NaN when data is missing.
+    sorted_pivot = dict(sorted(pivot.items()))  # ensure rows are in datetime order
+    rows = [["datetime-utc"] + stream_names]
+    for obs_time, data in dict(sorted(sorted_pivot.items())).items():
+        row_data = [obs_time.isoformat()]
+        for name in stream_names:
+            row_data.append(str(data.get(name, util.NAN)))
+        rows.append(row_data)
     return rows

@@ -1,9 +1,9 @@
 docs/
 .venv
 .env
-.lastend
+.last-*
 __pycache__
 __init__.py
 *.csv
 launch.json
-data/
+./data/

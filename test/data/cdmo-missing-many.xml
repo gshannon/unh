@@ -1,0 +1,705 @@
+<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <soapenv:Body>
+  <ns1:exportAllParamsDateRangeXMLNewResponse soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:ns1="http://webservices2">
+   <exportAllParamsDateRangeXMLNewReturn xsi:type="ns2:Document" xmlns:ns2="http://xml.apache.org/xml-soap">
+    <returnData>
+      	
+        
+        <data count="1">
+          <DateTimeStamp>10/31/2026 05:00</DateTimeStamp>
+
+      
+          <Temp>11.3</Temp>
+
+      
+          <DO_MgL>8.7</DO_MgL>
+
+      
+          <SpCond>50.02</SpCond>
+
+      
+          <cLevel>0.35</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>97.4</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 10:00</utcStamp>
+
+      </data>
+
+      
+          <data count="11">
+          <DateTimeStamp>10/31/2026 04:45</DateTimeStamp>
+
+      
+          <Temp>11.5</Temp>
+
+      
+          <DO_MgL>8.7</DO_MgL>
+
+      
+          <SpCond/>
+
+      
+          <cLevel/>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH/>
+
+      
+          <DO_pct/>
+
+      
+          <Turb>3</Turb>
+
+      
+          <utcStamp>10/31/2026 09:45</utcStamp>
+
+      </data>
+
+      
+          <data count="12">
+          <DateTimeStamp>10/31/2026 04:30</DateTimeStamp>
+
+      
+          <Temp>11.5</Temp>
+
+      
+          <DO_MgL>8.7</DO_MgL>
+
+      
+          <SpCond>49.99</SpCond>
+
+      
+          <cLevel>0.62</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>98.0</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 09:30</utcStamp>
+
+      </data>
+
+      
+          <data count="13">
+          <DateTimeStamp>10/31/2026 04:15</DateTimeStamp>
+
+      
+          <Temp>11.6</Temp>
+
+      
+          <DO_MgL>8.7</DO_MgL>
+
+      
+          <SpCond>49.98</SpCond>
+
+      
+          <cLevel>0.74</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>98.4</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 09:15</utcStamp>
+
+      </data>
+
+      
+          <data count="14">
+          <DateTimeStamp>10/31/2026 04:00</DateTimeStamp>
+
+      
+          <Temp>11.6</Temp>
+
+      
+          <DO_MgL>8.7</DO_MgL>
+
+      
+          <SpCond>49.98</SpCond>
+
+      
+          <cLevel/>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>98.4</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 09:00</utcStamp>
+
+      </data>
+
+      
+          <data count="15">
+          <DateTimeStamp>10/31/2026 03:45</DateTimeStamp>
+
+      
+          <Temp>11.7</Temp>
+
+      
+          <DO_MgL>8.5</DO_MgL>
+
+      
+          <SpCond>49.97</SpCond>
+
+      
+          <cLevel>0.94</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>96.6</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 08:45</utcStamp>
+
+      </data>
+
+      
+          <data count="16">
+          <DateTimeStamp>10/31/2026 03:30</DateTimeStamp>
+
+      
+          <Temp>11.7</Temp>
+
+      
+          <DO_MgL>8.7</DO_MgL>
+
+      
+          <SpCond>49.96</SpCond>
+
+      
+          <cLevel>1.01</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>98.5</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 08:30</utcStamp>
+
+      </data>
+
+      
+          <data count="17">
+          <DateTimeStamp>10/31/2026 03:15</DateTimeStamp>
+
+      
+          <Temp>11.7</Temp>
+
+      
+          <DO_MgL>8.6</DO_MgL>
+
+      
+          <SpCond>49.99</SpCond>
+
+      
+          <cLevel>1.06</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>97.2</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 08:15</utcStamp>
+
+      </data>
+
+      
+          <data count="18">
+          <DateTimeStamp>10/31/2026 03:00</DateTimeStamp>
+
+      
+          <Temp>11.8</Temp>
+
+      
+          <DO_MgL>8.7</DO_MgL>
+
+      
+          <SpCond>49.95</SpCond>
+
+      
+          <cLevel>1.10</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>98.7</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 08:00</utcStamp>
+
+      </data>
+
+      
+          <data count="19">
+          <DateTimeStamp>10/31/2026 02:45</DateTimeStamp>
+
+      
+          <Temp>11.8</Temp>
+
+      
+          <DO_MgL>8.7</DO_MgL>
+
+      
+          <SpCond>49.96</SpCond>
+
+      
+          <cLevel>1.11</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>99.0</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 07:45</utcStamp>
+
+      </data>
+
+      
+          <data count="20">
+          <DateTimeStamp>10/31/2026 02:30</DateTimeStamp>
+
+      
+          <Temp>11.8</Temp>
+
+      
+          <DO_MgL>8.8</DO_MgL>
+
+      
+          <SpCond>49.99</SpCond>
+
+      
+          <cLevel>1.11</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>99.3</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 07:30</utcStamp>
+
+      </data>
+
+      
+          <data count="21">
+          <DateTimeStamp>10/31/2026 02:15</DateTimeStamp>
+
+      
+          <Temp>11.9</Temp>
+
+      
+          <DO_MgL>8.8</DO_MgL>
+
+      
+          <SpCond>49.94</SpCond>
+
+      
+          <cLevel>1.08</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>99.4</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 07:15</utcStamp>
+
+      </data>
+
+      
+          <data count="22">
+          <DateTimeStamp>10/31/2026 02:00</DateTimeStamp>
+
+      
+          <Temp>11.9</Temp>
+
+      
+          <DO_MgL>8.8</DO_MgL>
+
+      
+          <SpCond>49.95</SpCond>
+
+      
+          <cLevel>1.06</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>99.5</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 07:00</utcStamp>
+
+      </data>
+
+      
+          <data count="23">
+          <DateTimeStamp>10/31/2026 01:45</DateTimeStamp>
+
+      
+          <Temp>11.9</Temp>
+
+      
+          <DO_MgL>8.8</DO_MgL>
+
+      
+          <SpCond>49.95</SpCond>
+
+      
+          <cLevel>1.00</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>99.7</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 06:45</utcStamp>
+
+      </data>
+
+      
+          <data count="24">
+          <DateTimeStamp>10/31/2026 01:30</DateTimeStamp>
+
+      
+          <Temp>11.9</Temp>
+
+      
+          <DO_MgL>8.7</DO_MgL>
+
+      
+          <SpCond>49.96</SpCond>
+
+      
+          <cLevel>0.91</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>99.4</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 06:30</utcStamp>
+
+      </data>
+
+      
+          <data count="25">
+          <DateTimeStamp>10/31/2026 01:15</DateTimeStamp>
+
+      
+          <Temp>12.0</Temp>
+
+      
+          <DO_MgL>8.7</DO_MgL>
+
+      
+          <SpCond>49.96</SpCond>
+
+      
+          <cLevel>0.80</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>99.3</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 06:15</utcStamp>
+
+      </data>
+
+      
+          <data count="26">
+          <DateTimeStamp>10/31/2026 01:00</DateTimeStamp>
+
+      
+          <Temp>12.0</Temp>
+
+      
+          <DO_MgL>8.8</DO_MgL>
+
+      
+          <SpCond>49.95</SpCond>
+
+      
+          <cLevel>0.68</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>99.6</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 06:00</utcStamp>
+
+      </data>
+
+      
+          <data count="27">
+          <DateTimeStamp>10/31/2026 00:45</DateTimeStamp>
+
+      
+          <Temp>12.0</Temp>
+
+      
+          <DO_MgL>8.8</DO_MgL>
+
+      
+          <SpCond>49.95</SpCond>
+
+      
+          <cLevel>0.54</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>99.8</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 05:45</utcStamp>
+
+      </data>
+
+      
+          <data count="28">
+          <DateTimeStamp>10/31/2026 00:30</DateTimeStamp>
+
+      
+          <Temp>12.0</Temp>
+
+      
+          <DO_MgL>8.8</DO_MgL>
+
+      
+          <SpCond>49.96</SpCond>
+
+      
+          <cLevel>0.40</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>99.8</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 05:30</utcStamp>
+
+      </data>
+
+      
+          <data count="29">
+          <DateTimeStamp>10/31/2026 00:15</DateTimeStamp>
+
+      
+          <Temp>12.0</Temp>
+
+      
+          <DO_MgL>8.8</DO_MgL>
+
+      
+          <SpCond>49.96</SpCond>
+
+      
+          <cLevel>0.24</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>100.3</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 05:15</utcStamp>
+
+      </data>
+
+      
+          <data count="30">
+          <DateTimeStamp>10/31/2026 00:00</DateTimeStamp>
+
+      
+          <Temp>12.0</Temp>
+
+      
+          <DO_MgL>8.8</DO_MgL>
+
+      
+          <SpCond>49.95</SpCond>
+
+      
+          <cLevel>0.08</cLevel>
+
+      
+          <Sal>32.6</Sal>
+
+      
+          <pH>7.9</pH>
+
+      
+          <DO_pct>100.4</DO_pct>
+
+      
+          <Turb>2</Turb>
+
+      
+          <utcStamp>10/31/2026 05:00</utcStamp>
+
+      </data>
+
+      
+      </returnData>
+   </exportAllParamsDateRangeXMLNewReturn>
+  </ns1:exportAllParamsDateRangeXMLNewResponse>
+ </soapenv:Body>
+</soapenv:Envelope>
