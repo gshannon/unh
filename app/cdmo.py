@@ -105,7 +105,7 @@ def sort_values_by_param(data: dict[str, str]) -> list[str]:
     cooked: list[str] = []
     for key in WATER_PARAMS:
         val = data.get(key, util.NAN)
-        if len(val) == util.NAN:
+        if val == util.NAN:
             logger.warning(f"No data returned for {key}")
         cooked.append(val)
     return cooked
