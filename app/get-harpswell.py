@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import logging
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -34,7 +35,7 @@ def main(argv=None):
 
     start, end, auto_mode = arg_util.get_window(parser, args, last_dt, MAXIMUM_WINDOW)
     logger.info(
-        f"Processing {start} to {end}, auto_mode={auto_mode}, nostrict={args.nostrict}"
+        f"Processing {start} to {end}, auto_mode={auto_mode}, type={job_type.value}"
     )
 
     # Pull the data from the API
@@ -60,6 +61,9 @@ def main(argv=None):
             job_type, datetime.fromisoformat(csv_data[1][0])
         )
         util.write_data_file(data_filepath, csv_data)
+        logger.info(
+            f"Wrote {len(csv_data) - 1} records to {os.path.basename(data_filepath)}"
+        )
         # Ftp the file
         if not args.dryrun and not args.noftp:
             ftp.send_file(data_filepath)

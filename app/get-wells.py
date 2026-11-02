@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import logging
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -48,6 +49,9 @@ def main(argv=None):
             util.JobType.WELLS, datetime.fromisoformat(csv_data[1][0])
         )
         util.write_data_file(data_filepath, csv_data)
+        logger.info(
+            f"Wrote {len(csv_data) - 1} records to {os.path.basename(data_filepath)}"
+        )
 
         if not args.dryrun and not args.noftp:
             ftp.send_file(data_filepath)
