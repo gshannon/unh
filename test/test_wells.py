@@ -16,9 +16,7 @@ class WellsTest(TestCase):
         """Able to process normal CDMO payload."""
 
         xml: bytes = util.read_xml(Path(test_data_dir) / "cdmo-full.xml")
-        data: dict[datetime, dict[str, str]] = cdmo.parse_cdmo_xml(
-            start, end, xml, True
-        )
+        data: dict[datetime, dict[str, str]] = cdmo.parse_cdmo_xml(start, end, xml)
         self.assertEqual(len(data), 17)
         expected_values = len(cdmo.WATER_PARAMS)
         for values in data.values():
@@ -31,9 +29,7 @@ class WellsTest(TestCase):
         """Handles warning conditions"""
 
         xml: bytes = util.read_xml(Path(test_data_dir) / "cdmo-missing-1.xml")
-        data: dict[datetime, dict[str, str]] = cdmo.parse_cdmo_xml(
-            start, end, xml, True
-        )
+        data: dict[datetime, dict[str, str]] = cdmo.parse_cdmo_xml(start, end, xml)
         self.assertEqual(len(data), 16)  # One was removed
         expected_values = len(cdmo.WATER_PARAMS)
         for values in data.values():
@@ -43,9 +39,7 @@ class WellsTest(TestCase):
         self.assertEqual(max(data), end - timedelta(minutes=15))
 
         xml: bytes = util.read_xml(Path(test_data_dir) / "cdmo-missing-3.xml")
-        data: dict[datetime, dict[str, str]] = cdmo.parse_cdmo_xml(
-            start, end, xml, True
-        )
+        data: dict[datetime, dict[str, str]] = cdmo.parse_cdmo_xml(start, end, xml)
         self.assertEqual(len(data), 14)  # 3 were removed
         expected_values = len(cdmo.WATER_PARAMS)
         for values in data.values():
@@ -61,9 +55,7 @@ class WellsTest(TestCase):
         # 09:00 UTC has no cLevel
         missing_time = datetime(2026, 10, 31, 9, 0, tzinfo=util.utc)
 
-        data: dict[datetime, dict[str, str]] = cdmo.parse_cdmo_xml(
-            start, end, xml, strict=True
-        )
+        data: dict[datetime, dict[str, str]] = cdmo.parse_cdmo_xml(start, end, xml)
 
         rows: list[list[str]] = cdmo.to_cdmo_rows(data)
         for record in rows:
@@ -75,9 +67,7 @@ class WellsTest(TestCase):
             else:
                 self.assertTrue(util.NAN not in record)
 
+        # With several missing fields, should emit warnings but does not fail
         xml: bytes = util.read_xml(Path(test_data_dir) / "cdmo-missing-many.xml")
-        with self.assertRaisesRegex(util.AppError, "Bad"):
-            cdmo.parse_cdmo_xml(start, end, xml, strict=True)
-
-        data = cdmo.parse_cdmo_xml(start, end, xml, strict=False)
+        data = cdmo.parse_cdmo_xml(start, end, xml)
         self.assertEqual(len(data), 17)

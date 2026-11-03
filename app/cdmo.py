@@ -18,11 +18,11 @@ MAX_CDMO_WINDOW = 10  # 10 days max
 
 
 def get_water_data(
-    start_time: datetime, end_time: datetime, strict: bool = False
+    start_time: datetime, end_time: datetime
 ) -> dict[datetime, dict[str, str]]:
 
     xml: bytes = get_cdmo_xml(WATER_STATION, start_time, end_time, WATER_PARAMS)
-    return parse_cdmo_xml(start_time, end_time, xml, strict)
+    return parse_cdmo_xml(start_time, end_time, xml)
 
 
 def get_cdmo_xml(
@@ -40,10 +40,7 @@ def get_cdmo_xml(
 
 
 def parse_cdmo_xml(
-    start_time: datetime,
-    end_time: datetime,
-    xml: bytes,
-    strict: bool,
+    start_time: datetime, end_time: datetime, xml: bytes
 ) -> dict[datetime, dict[str, str]]:
     data: dict[datetime, dict[str, str]] = {}
 
@@ -94,8 +91,6 @@ def parse_cdmo_xml(
                 logger.warning(f"{dt} is missing {CLEVEL}, will return {util.NAN}")
         else:
             logger.error(f"{dt} has {num_values} values, expected {expected_values}")
-            if strict:
-                raise util.AppError("Bad data")
 
     # Finally sort it by datetime ascending
     return dict(sorted(data.items()))

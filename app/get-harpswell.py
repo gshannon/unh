@@ -39,7 +39,6 @@ def main(argv=None):
     )
 
     # Pull the data from the API
-    logger.info(f"Pulling Harpswell {job_type.value} data...")
     streams: dict[str, str] = (
         xylem.EXO_DATA_STREAMS
         if job_type == util.JobType.HARPSWELL_EXO

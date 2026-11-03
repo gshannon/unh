@@ -30,14 +30,9 @@ def main(argv=None):
     last_dt = util.read_marker_file(util.JobType.WELLS)
 
     start, end, auto_mode = arg_util.get_window(parser, args, last_dt, MAXIMUM_WINDOW)
-    logger.info(
-        f"Processing {start} to {end}, auto_mode={auto_mode}, nostrict={args.nostrict}"
-    )
+    logger.info(f"Processing {start} to {end}, auto_mode={auto_mode}")
 
-    logger.info("Pulling Wells data...")
-    water: dict[datetime, dict[str, str]] = cdmo.get_water_data(
-        start, end, not args.nostrict
-    )
+    water: dict[datetime, dict[str, str]] = cdmo.get_water_data(start, end)
 
     if len(water) == 0:
         logger.warning("No CDMO data returned")

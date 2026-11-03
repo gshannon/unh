@@ -36,9 +36,6 @@ def process_params(argv=None, include_type: bool = False):
         )
     parser.add_argument("-d", "--dryrun", action="store_true", help="Do not ftp if set")
     parser.add_argument(
-        "--nostrict", action="store_true", help="Do not fail if missing data"
-    )
-    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Print extra diagnostics"
     )
     parser.add_argument("--noftp", action="store_true", help="Do not ftp results")
