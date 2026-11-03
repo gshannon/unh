@@ -45,7 +45,7 @@ def process_params(argv=None, include_type: bool = False):
 
 def get_window(
     parser, args, marker_file_dt: datetime, max_window: int
-) -> tuple[datetime, datetime]:
+) -> tuple[datetime, datetime, bool]:
     """Return (start, end) from --start or --start/--end, validating the combination."""
     if args.end_time and not args.start_time:
         parser.error("--end requires --start")

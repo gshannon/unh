@@ -57,7 +57,7 @@ class WellsTest(TestCase):
 
         data: dict[datetime, dict[str, str]] = cdmo.parse_cdmo_xml(start, end, xml)
 
-        rows: list[list[str]] = cdmo.to_cdmo_rows(data)
+        rows: list[list[str]] = cdmo.to_csv_rows(data)
         for record in rows:
             self.assertEqual(
                 len(record), len(cdmo.WATER_PARAMS) + 1

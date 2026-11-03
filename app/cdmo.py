@@ -71,7 +71,7 @@ def parse_cdmo_xml(
     logger.debug(f"read {read_cnt} records, considering {keep_cnt}")
 
     # Check for the correct number of values for each time.  Remove all *trailing* records with
-    # missing cLevel.  If cLevel is missing in the middle, it is allowed nd will be converted to NaN later.
+    # missing cLevel.  If cLevel is missing in the middle, it is allowed and will be converted to NaN later.
     # Here we depend on the fact that the data keys are in reverse chronological order.
     expected_values = len(WATER_PARAMS)
     clevel_found = False
@@ -80,17 +80,15 @@ def parse_cdmo_xml(
         num_values = len(values)
         if num_values == expected_values:
             clevel_found = True
-        elif num_values == expected_values - 1 and not CLEVEL in values:
-            # It's only missing cLevel.
+        if num_values == expected_values - 1 and not CLEVEL in values:
+            # It's only missing cLevel. This is a special case.
             if not clevel_found:
-                # It's missing at the end of the data.
+                # Haven't seen it yet, so it's missing at the tail end of the data.
                 # This is an expected case and we can just delete it.
                 logger.warning(f"{dt} is missing {CLEVEL}, on end, deleting")
                 del data[dt]
             else:
                 logger.warning(f"{dt} is missing {CLEVEL}, will return {util.NAN}")
-        else:
-            logger.error(f"{dt} has {num_values} values, expected {expected_values}")
 
     # Finally sort it by datetime ascending
     return dict(sorted(data.items()))
@@ -106,8 +104,8 @@ def sort_values_by_param(data: dict[str, str]) -> list[str]:
     return cooked
 
 
-def to_cdmo_rows(water: dict[datetime, dict[str, str]]) -> list[list[str]]:
-    rows: list[list] = [["datetime-utc"] + WATER_PARAMS]
+def to_csv_rows(water: dict[datetime, dict[str, str]]) -> list[list[str]]:
+    rows: list[list] = [["timestamp"] + WATER_PARAMS]
 
     for obs_time, data in dict(sorted(water.items())).items():
         rows.append([obs_time.isoformat()] + sort_values_by_param(data))

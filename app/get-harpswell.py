@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def main(argv=None):
 
-    # Keep the root logger at INFO so library debug output stays quiet;
+    # Keep the root logger at INFO so library debug output stays quiet
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s: %(levelname)s %(module)s %(message)s",

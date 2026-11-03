@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def main(argv=None):
 
-    # Keep the root logger at INFO so library debug output stays quiet;
+    # Keep the root logger at INFO so library debug output stays quiet.
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s: %(levelname)s %(module)s %(message)s",
@@ -37,7 +37,7 @@ def main(argv=None):
     if len(water) == 0:
         logger.warning("No CDMO data returned")
     else:
-        csv_data = cdmo.to_cdmo_rows(water)
+        csv_data = cdmo.to_csv_rows(water)
         if len(csv_data) < 2:
             raise util.AppError("No csv data!")
         data_filepath = util.build_outfilepath(

@@ -181,7 +181,7 @@ def to_timestamp_rows(
 
     # Build the csv data. This forces all rows to be equal length, using NaN when data is missing.
     sorted_pivot = dict(sorted(pivot.items()))  # ensure rows are in datetime order
-    rows = [["datetime-utc"] + stream_names]
+    rows = [["timestamp"] + stream_names]
     for obs_time, data in dict(sorted(sorted_pivot.items())).items():
         row_data = [obs_time.isoformat()]
         for name in stream_names:
