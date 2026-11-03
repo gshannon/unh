@@ -20,12 +20,12 @@ This project has 3 Python programs which call APIs, generate csv files, and uplo
 
 ## Special Case for Wells water level
 
-Normally, any missing fields will be returned as _NaN_. But because the most recent data point that CDMO returns usually has a missing corrected level (_cLevel_) which is then made available later, once it has processed the weather data. Therefore, any such trailing records from CDMO (i.e. at the tail end of the current data) will be ignored -- not used for the marker file and not included in the output.
+Normally, any missing fields will be returned as _NaN_. But because the most recent data point that CDMO returns usually has a missing corrected level (_cLevel_) which is then made available later, once it has processed the weather data, any such trailing records from CDMO (i.e. at the tail end of the current data) will be ignored -- not used for the marker file and not included in the output.
 
 ## Arguments
 
 - _--start_ and _--end_: use this date range instead of the default auto mode
-- _--type_ <x> : for Harpswell jobs; E=EXO, M=MET
+- _--type_ [E|M] : for Harpswell jobs; [E]XO or [M]ET
 - _--dryrun_ : do not write the marker file or do the ftp upload
 - _--noftp_ do not do the ftp upload
 - _--verbose_: see debug level output
