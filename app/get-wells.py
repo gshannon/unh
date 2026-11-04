@@ -52,7 +52,7 @@ def main(argv=None):
             ftp.send_file(data_filepath)
         else:
             logger.debug(
-                f"Not sending {data_filepath}, dryrun={args.dryrun}, noftp={args.noftp}"
+                f"Not sending {os.basename(data_filepath)}, dryrun={args.dryrun}, noftp={args.noftp}"
             )
 
         # If we made it this far, we succeeded. Write the marker file if in auto mode.
@@ -62,8 +62,9 @@ def main(argv=None):
             logger.info(
                 f"Not writing marker file, auto_mode={auto_mode} dryrun={args.dryrun}"
             )
-    # deleted = ftp.clean_files(1)
-    # logger.info(f"DELETED {deleted} ftp files")
+
+        # Housekeeping
+        util.delete_old_files(util.JobType.WELLS.value, timedelta(days=3))
 
 
 if __name__ == "__main__":
@@ -72,4 +73,4 @@ if __name__ == "__main__":
         sys.exit(0)
     except util.AppError as e:
         logger.error(e)
-        sys.exit(0)
+        sys.exit(1)

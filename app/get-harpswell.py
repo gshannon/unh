@@ -63,11 +63,12 @@ def main(argv=None):
         logger.info(
             f"Wrote {len(csv_data) - 1} records to {os.path.basename(data_filepath)}"
         )
-        # Ftp the file
         if not args.dryrun and not args.noftp:
             ftp.send_file(data_filepath)
         else:
-            logger.debug(f"Not sending ftp file, dryrun={args.dryrun}")
+            logger.debug(
+                f"Not sending {os.basename(data_filepath)}, dryrun={args.dryrun}, noftp={args.noftp}"
+            )
 
         # If we made it this far, we succeeded. Write the marker file if in auto mode.
         if auto_mode and not args.dryrun:
@@ -77,6 +78,9 @@ def main(argv=None):
                 f"Not writing marker file, auto_mode={auto_mode} dryrun={args.dryrun}"
             )
 
+        # Housekeeping
+        util.delete_old_files(job_type.value, timedelta(days=3))
+
 
 if __name__ == "__main__":
     try:
@@ -84,4 +88,4 @@ if __name__ == "__main__":
         sys.exit(0)
     except util.AppError as e:
         logger.error(e)
-        sys.exit(0)
+        sys.exit(1)

@@ -16,6 +16,10 @@ target_password = os.environ.get("TARGET_PASSWORD", None)
 
 def send_file(file_path) -> None:
 
+    if not target_ip:
+        logger.info("Skipping ftp, not target defined")
+        return
+
     with FTP(target_ip) as ftp:
         ftp.login(target_user, target_password)
 
