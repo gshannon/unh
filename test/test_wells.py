@@ -73,7 +73,7 @@ class WellsTest(TestCase):
         self.assertEqual(len(data), 17)
 
     def test_lst(self):
-        """Converts UTC datetimes to US/Eastern LST properly"""
+        """Converts UTC datetimes to LST properly"""
         utc = datetime(2026, 10, 15, 23, 59, 0, tzinfo=util.utc)
         expected = datetime(2026, 10, 15, 18, 59, 0, tzinfo=util.eastern)
         self.assertTrue(util.is_dst(expected))

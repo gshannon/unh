@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 utc = ZoneInfo("UTC")
-eastern = ZoneInfo("US/Eastern")
+eastern = ZoneInfo("America/New_York")
 
 # Note:
 # EXO comes in at 01:04 past the 15-min.
@@ -45,9 +45,10 @@ def parse_time(value: str) -> datetime:
     return dt.replace(tzinfo=utc) if dt.tzinfo is None else dt
 
 
-def to_lst(dt: datetime, tz: ZoneInfo) -> datetime:
-    """Convert an aware datetime to LST for a given timezone."""
-    local = dt.astimezone(tz)
+def to_lst(dt: datetime, tz: ZoneInfo | None = None) -> datetime:
+    """Convert an aware datetime to LST for a given timezone, which defaults to that of given dt."""
+    tzone = tz if tz is not None else dt.tzinfo
+    local = dt.astimezone(tzone)
     if is_dst(local):
         return local - timedelta(hours=1)
     else:
