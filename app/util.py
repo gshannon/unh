@@ -1,7 +1,6 @@
 import csv
 import json
 import logging
-import os
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
@@ -99,10 +98,12 @@ def delete_old_files(prefix: str, age: timedelta) -> None:
     """Delete csv files starting with a prefix and whose last modification is older than `age`."""
     directory = _root_dir / "data"
     cutoff = datetime.now(utc) - age
+    delete_count = keep_count = 0
     for path in sorted(directory.rglob(f"{prefix}*.csv")):
         modified = datetime.fromtimestamp(path.stat().st_mtime, utc)
         if modified < cutoff:
-            logger.debug(f"deleting, older than {age}: {os.path.basename(path)}")
+            delete_count += 1
             path.unlink()
         else:
-            logger.debug(f"kept, not older than {age}: {os.path.basename(path)}")
+            keep_count += 1
+    logger.debug(f"deleted {delete_count}, kept {keep_count}files, age {age}")

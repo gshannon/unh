@@ -52,7 +52,7 @@ def main(argv=None):
             ftp.send_file(data_filepath)
         else:
             logger.debug(
-                f"Not sending {os.basename(data_filepath)}, dryrun={args.dryrun}, noftp={args.noftp}"
+                f"Not sending {os.path.basename(data_filepath)}, dryrun={args.dryrun}, noftp={args.noftp}"
             )
 
         # If we made it this far, we succeeded. Write the marker file if in auto mode.
