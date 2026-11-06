@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 utc = ZoneInfo("UTC")
+eastern = ZoneInfo("US/Eastern")
 
 # Note:
 # EXO comes in at 01:04 past the 15-min.
@@ -44,6 +45,15 @@ def parse_time(value: str) -> datetime:
     return dt.replace(tzinfo=utc) if dt.tzinfo is None else dt
 
 
+def to_lst(dt: datetime, tz: ZoneInfo) -> datetime:
+    """Convert an aware datetime to LST for a given timezone."""
+    local = dt.astimezone(tz)
+    if is_dst(local):
+        return local - timedelta(hours=1)
+    else:
+        return local
+
+
 def is_dst(dt: datetime) -> bool:
     """Returns whether the given datetime is in DST."""
     dst = dt.dst()
@@ -71,7 +81,6 @@ def read_marker_file(job_type: JobType) -> datetime:
 
 
 def write_data_file(filepath: Path, data: list[list[str]]) -> None:
-    logger.debug(f"Writing {len(data)} lines to {filepath}")
     with filepath.open("w", newline="") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerows(data)

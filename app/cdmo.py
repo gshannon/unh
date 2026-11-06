@@ -1,6 +1,6 @@
 import logging
 import xml.etree.ElementTree as ElTree
-from datetime import date, datetime, timedelta
+from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -28,8 +28,8 @@ def get_water_data(
 def get_cdmo_xml(
     station_id: str, start_time: datetime, end_time: datetime, params: list[str]
 ) -> bytes:
-    # Because CDMO returns units of entire days using LST, we may need to adjust the dates we request.
-    req_start_date, req_end_date = compute_cdmo_request_dates(start_time, end_time)
+    req_start_date = util.to_lst(start_time, util.eastern).date()
+    req_end_date = util.to_lst(end_time, util.eastern).date()
     logger.debug(f"requesting from cdmo: {req_start_date} to {req_end_date}")
     param_str = ",".join(params)
     xml: bytes = SoapClient.get_client().service.exportAllParamsDateRangeXMLNew(
@@ -123,18 +123,3 @@ def ensure_no_text(rootElement: ElTree.Element) -> None:
             raise util.AppError(f"CDMO returned: {message}")
     except AttributeError:
         pass  # Not every payload has text in their data node
-
-
-def compute_cdmo_request_dates(
-    start_time: datetime, end_time: datetime
-) -> tuple[date, date]:
-    requested_start_date = start_time.date()
-    requested_end_date = end_time.date()
-
-    if util.is_dst(start_time) and start_time.hour < 1:
-        requested_start_date -= timedelta(days=1)
-
-    if util.is_dst(end_time) and end_time.hour < 1:
-        requested_end_date -= timedelta(days=1)
-
-    return requested_start_date, requested_end_date

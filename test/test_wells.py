@@ -71,3 +71,37 @@ class WellsTest(TestCase):
         xml: bytes = util.read_xml(Path(test_data_dir) / "cdmo-missing-many.xml")
         data = cdmo.parse_cdmo_xml(start, end, xml)
         self.assertEqual(len(data), 17)
+
+    def test_lst(self):
+        """Converts UTC datetimes to US/Eastern LST properly"""
+        utc = datetime(2026, 10, 15, 23, 59, 0, tzinfo=util.utc)
+        expected = datetime(2026, 10, 15, 18, 59, 0, tzinfo=util.eastern)
+        self.assertTrue(util.is_dst(expected))
+        self.assertEqual(
+            util.to_lst(utc, util.eastern),
+            expected,
+        )
+
+        utc = datetime(2026, 10, 16, 0, tzinfo=util.utc)
+        expected = datetime(2026, 10, 15, 19, tzinfo=util.eastern)
+        self.assertTrue(util.is_dst(expected))
+        self.assertEqual(
+            util.to_lst(utc, util.eastern),
+            datetime(2026, 10, 15, 19, tzinfo=util.eastern),
+        )
+
+        utc = datetime(2026, 12, 15, 23, 59, 0, tzinfo=util.utc)
+        expected = datetime(2026, 12, 15, 18, 59, 0, tzinfo=util.eastern)
+        self.assertFalse(util.is_dst(expected))
+        self.assertEqual(
+            util.to_lst(utc, util.eastern),
+            expected,
+        )
+
+        utc = datetime(2026, 12, 16, 0, tzinfo=util.utc)
+        expected = datetime(2026, 12, 15, 19, tzinfo=util.eastern)
+        self.assertFalse(util.is_dst(expected))
+        self.assertEqual(
+            util.to_lst(utc, util.eastern),
+            datetime(2026, 12, 15, 19, tzinfo=util.eastern),
+        )
